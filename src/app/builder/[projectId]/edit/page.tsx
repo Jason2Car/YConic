@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { ActivityBar } from "@/components/builder/ActivityBar";
 import { SidebarPanel } from "@/components/builder/SidebarPanel";
 import { EditorPanel } from "@/components/builder/EditorPanel";
@@ -12,6 +12,7 @@ import { MOCK_PROJECT } from "@/lib/mockData";
 
 export default function EditPage() {
   const params = useParams();
+  const router = useRouter();
   const projectId = params?.projectId as string;
   const { setProject, project } = useBuilderStore();
   const [activePanel, setActivePanel] = useState("explorer");
@@ -19,9 +20,18 @@ export default function EditPage() {
 
   useEffect(() => {
     // In production: fetch from tRPC — trpc.project.getById.useQuery({ id: projectId })
-    // For now, load mock data
-    setProject({ ...MOCK_PROJECT, id: projectId ?? MOCK_PROJECT.id });
-  }, [projectId, setProject]);
+    // Only set mock data if no project is loaded yet (intro flow sets it already)
+    if (!project || project.id !== projectId) {
+      setProject({ ...MOCK_PROJECT, id: projectId ?? MOCK_PROJECT.id });
+    }
+  }, [projectId, project, setProject]);
+
+  // Stage guard: redirect to intro if project hasn't completed it
+  useEffect(() => {
+    if (project && project.stage !== "edit") {
+      router.replace(`/builder/${projectId}/intro`);
+    }
+  }, [project, projectId, router]);
 
   const handlePanelChange = (panel: string) => {
     if (panel === activePanel) {

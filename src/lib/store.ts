@@ -1,7 +1,7 @@
 "use client";
 
 import { create } from "zustand";
-import type { Project, Module, ChatMessage, RevisionEntry, ProposedChange } from "./types";
+import type { Project, Module, ChatMessage, RevisionEntry, ProposedChange, IntroFormData } from "./types";
 
 interface BuilderState {
   project: Project | null;
@@ -11,6 +11,7 @@ interface BuilderState {
   isSaving: boolean;
   saveError: boolean;
   isAiThinking: boolean;
+  introData: IntroFormData | null;
 
   // Actions
   setProject: (project: Project) => void;
@@ -24,6 +25,8 @@ interface BuilderState {
   setSaving: (v: boolean) => void;
   setSaveError: (v: boolean) => void;
   setAiThinking: (v: boolean) => void;
+  setIntroData: (data: IntroFormData) => void;
+  advanceToEdit: () => void;
 }
 
 export const useBuilderStore = create<BuilderState>((set, get) => ({
@@ -34,6 +37,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => ({
   isSaving: false,
   saveError: false,
   isAiThinking: false,
+  introData: null,
 
   setProject: (project) => set({ project }),
 
@@ -137,4 +141,12 @@ export const useBuilderStore = create<BuilderState>((set, get) => ({
   setSaving: (v) => set({ isSaving: v }),
   setSaveError: (v) => set({ saveError: v }),
   setAiThinking: (v) => set({ isAiThinking: v }),
+
+  setIntroData: (data) => set({ introData: data }),
+
+  advanceToEdit: () => {
+    const { project } = get();
+    if (!project) return;
+    set({ project: { ...project, stage: "edit" } });
+  },
 }));

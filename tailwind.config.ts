@@ -49,7 +49,7 @@ const config: Config = {
         "vsc-status":      "#3B8BFF",
       },
       fontFamily: {
-        sans: ["'Plus Jakarta Sans'", "Inter", "system-ui", "sans-serif"],
+        sans: ["'Open Sans'", "system-ui", "sans-serif"],
         mono: ["Consolas", "Menlo", "Monaco", "'Courier New'", "monospace"],
       },
       fontSize: {

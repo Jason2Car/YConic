@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
 export default function Home() {
-  // Redirect to the demo edit page
-  redirect("/builder/proj_demo/edit");
+  // First-time visitors start at the intro questionnaire
+  redirect("/builder/proj_demo/intro");
 }

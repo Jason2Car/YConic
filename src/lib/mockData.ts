@@ -5,7 +5,7 @@ export const MOCK_PROJECT: Project = {
   title: "Web Dev Onboarding",
   description: "Get new members up to speed on our frontend stack.",
   published: false,
-  stage: "edit",
+  stage: "intro", // first-time visitors start here
   modules: [
     {
       id: "mod_1",

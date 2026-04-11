@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@ai-sdk/xai": "^3.0.82",
     "@monaco-editor/react": "^4.6.0",
     "@tiptap/extension-bold": "^2.4.0",
     "@tiptap/extension-bullet-list": "^2.4.0",

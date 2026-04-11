@@ -86,3 +86,20 @@ export interface RevisionEntry {
   changeDescription: string;
   snapshotBefore: Project;
 }
+
+// ─── Intro Questionnaire ─────────────────────────────────────────────────────
+
+export interface IntroFormData {
+  goals: string;
+  baselineSkills: string[];
+  customSkills: string;
+  rules: string;
+  examples: ExampleReference[];
+}
+
+export interface ExampleReference {
+  id: string;
+  type: "url" | "text";
+  label: string;
+  value: string;
+}
