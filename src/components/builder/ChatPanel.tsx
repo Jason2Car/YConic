@@ -271,7 +271,7 @@ export function ChatPanel() {
         <div className="flex items-center gap-2">
           <Bot size={15} className="text-vsc-green" />
           <span className="text-sm font-medium text-vsc-text">AI Assistant</span>
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-vsc-accent/15 text-vsc-accent font-medium">Grok</span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-vsc-accent/15 text-vsc-accent font-medium">OpenRouter</span>
         </div>
         <button
           onClick={undo}

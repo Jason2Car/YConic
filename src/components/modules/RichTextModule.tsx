@@ -17,6 +17,7 @@ export function RichTextModule({ moduleId, content }: Props) {
   const editor = useEditor({
     extensions: [StarterKit],
     content: content.html || "<p>Start writing...</p>",
+    immediatelyRender: false,
     editorProps: {
       attributes: {
         class:

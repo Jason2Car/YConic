@@ -79,10 +79,13 @@ export function SidebarPanel() {
               .slice()
               .sort((a, b) => a.position - b.position)
               .map((mod) => (
-                <button
+                <div
                   key={mod.id}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => setActiveModule(mod.id)}
-                  className={`w-full flex items-center gap-2 px-3 py-1.5 text-sm group transition-colors ${
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setActiveModule(mod.id); }}
+                  className={`w-full flex items-center gap-2 px-3 py-1.5 text-sm group transition-colors cursor-pointer ${
                     activeModuleId === mod.id
                       ? "bg-vsc-accent/20 text-vsc-text"
                       : "text-vsc-text-muted hover:bg-white/5 hover:text-vsc-text"
@@ -99,7 +102,7 @@ export function SidebarPanel() {
                   >
                     <Trash2 size={12} />
                   </button>
-                </button>
+                </div>
               ))}
 
             {/* Add module buttons */}

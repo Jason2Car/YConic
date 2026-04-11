@@ -1,11 +1,12 @@
-import { createXai } from "@ai-sdk/xai";
+import { createOpenAI } from "@ai-sdk/openai";
 import { streamText, type CoreMessage } from "ai";
 
-// Allow streaming responses up to 30 seconds
 export const maxDuration = 30;
 
-const xai = createXai({
-  // Uses XAI_API_KEY env var by default
+// OpenRouter is OpenAI-compatible — just point at their base URL
+const openrouter = createOpenAI({
+  baseURL: "https://openrouter.ai/api/v1",
+  apiKey: process.env.OPENROUTER_API_KEY ?? "",
 });
 
 interface IntroContext {
@@ -111,9 +112,13 @@ export async function POST(req: Request) {
 
   const systemPrompt = buildSystemPrompt(introContext, projectContext);
 
+  // Use Grok via OpenRouter — swap the model string to use any model:
+  // "x-ai/grok-3-mini", "anthropic/claude-3.5-sonnet", "openai/gpt-4o", etc.
+  const model = process.env.OPENROUTER_MODEL ?? "x-ai/grok-3-mini";
+
   try {
     const result = await streamText({
-      model: xai("grok-3-mini"),
+      model: openrouter(model),
       system: systemPrompt,
       messages,
     });
