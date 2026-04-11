@@ -15,3 +15,19 @@ export function sanitizeHtml(html: string): string {
     ALLOWED_ATTR: ["href", "target", "rel", "class"],
   });
 }
+
+
+/**
+ * Strips internal Piston container paths and temp file paths from stderr
+ * to avoid leaking system details to the end user.
+ *
+ * @param stderr - Raw stderr output from code execution
+ * @returns Sanitized stderr with internal paths removed
+ */
+export function sanitizeStderr(stderr: string): string {
+  return stderr
+    .split("\n")
+    .filter((line) => !line.match(/\/piston\/jobs\//))
+    .filter((line) => !line.match(/^\/tmp\//))
+    .join("\n");
+}

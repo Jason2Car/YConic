@@ -135,7 +135,11 @@ export default function DashboardPage() {
                                 style={{ backgroundColor: "#252526", border: "1px solid #3e3e42" }}>
                                 <div className="flex-1 min-w-0">
                                     <button
-                                        onClick={() => router.push(`/builder/${p.id}/edit`)}
+                                        onClick={() => {
+                                            const stage = (p.stage || "intro").toLowerCase();
+                                            const path = stage === "edit" ? "edit" : "intro";
+                                            router.push(`/builder/${p.id}/${path}`);
+                                        }}
                                         className="text-sm font-medium hover:underline text-left"
                                         style={{ color: "#cccccc" }}
                                     >

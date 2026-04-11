@@ -41,7 +41,7 @@ export default function EditPage() {
     }, [project, projectId, saveToDb]);
 
     useEffect(() => {
-        if (project && project.stage !== "edit") {
+        if (loaded && project && project.stage.toLowerCase() !== "edit") {
             router.replace(`/builder/${projectId}/intro`);
         }
     }, [project, projectId, router]);

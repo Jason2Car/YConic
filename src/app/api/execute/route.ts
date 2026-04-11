@@ -15,14 +15,7 @@ const LANGUAGE_MAP: Record<string, { language: string; version: string }> = {
     typescript: { language: "typescript", version: "5.0.3" },
 };
 
-/** Strip internal Piston container paths from stderr to avoid leaking system details */
-function sanitizeStderr(stderr: string): string {
-    return stderr
-        .split("\n")
-        .filter((line) => !line.match(/\/piston\/jobs\//))
-        .filter((line) => !line.match(/^\/tmp\//))
-        .join("\n");
-}
+export { sanitizeStderr } from "@/lib/sanitize";
 
 /** POST /api/execute — sandboxed code execution via Piston API */
 export async function POST(req: Request) {
