@@ -24,10 +24,24 @@ const MODULE_TYPE_ICONS: Record<Module["type"], string> = {
 };
 
 export function SidebarPanel() {
-  const { project, activeModuleId, setActiveModule, applyChange } = useBuilderStore();
+  const { project, activeModuleId, setActiveModule, applyChange, setProject } = useBuilderStore();
   const [modulesOpen, setModulesOpen] = useState(true);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleValue, setTitleValue] = useState("");
 
   if (!project) return null;
+
+  const handleStartEdit = () => {
+    setTitleValue(project.title);
+    setEditingTitle(true);
+  };
+
+  const handleSaveTitle = () => {
+    if (titleValue.trim()) {
+      setProject({ ...project, title: titleValue.trim() });
+    }
+    setEditingTitle(false);
+  };
 
   const handleAddModule = (type: Module["type"]) => {
     applyChange({
@@ -53,10 +67,27 @@ export function SidebarPanel() {
         Explorer
       </div>
 
-      {/* Project name */}
+      {/* Project name — click to edit */}
       <div className="px-3 py-2 border-b border-vsc-border">
         <p className="text-xs text-vsc-text-muted uppercase tracking-wider mb-0.5">Project</p>
-        <p className="text-sm text-vsc-text font-medium truncate">{project.title}</p>
+        {editingTitle ? (
+          <input
+            autoFocus
+            value={titleValue}
+            onChange={(e) => setTitleValue(e.target.value)}
+            onBlur={handleSaveTitle}
+            onKeyDown={(e) => { if (e.key === "Enter") handleSaveTitle(); if (e.key === "Escape") setEditingTitle(false); }}
+            className="w-full text-sm font-medium bg-vsc-bg text-vsc-text border border-vsc-accent rounded px-1.5 py-0.5 outline-none"
+          />
+        ) : (
+          <button
+            onClick={handleStartEdit}
+            className="text-sm text-vsc-text font-medium truncate w-full text-left hover:text-vsc-accent transition-colors"
+            title="Click to rename project"
+          >
+            {project.title}
+          </button>
+        )}
       </div>
 
       {/* Modules tree */}
@@ -85,11 +116,10 @@ export function SidebarPanel() {
                   tabIndex={0}
                   onClick={() => setActiveModule(mod.id)}
                   onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setActiveModule(mod.id); }}
-                  className={`w-full flex items-center gap-2 px-3 py-1.5 text-sm group transition-colors cursor-pointer ${
-                    activeModuleId === mod.id
-                      ? "bg-vsc-accent/20 text-vsc-text"
-                      : "text-vsc-text-muted hover:bg-white/5 hover:text-vsc-text"
-                  }`}
+                  className={`w-full flex items-center gap-2 px-3 py-1.5 text-sm group transition-colors cursor-pointer ${activeModuleId === mod.id
+                    ? "bg-vsc-accent/20 text-vsc-text"
+                    : "text-vsc-text-muted hover:bg-white/5 hover:text-vsc-text"
+                    }`}
                 >
                   <GripVertical size={12} className="text-vsc-text-muted opacity-0 group-hover:opacity-100 shrink-0" />
                   <span className={`text-xs font-mono shrink-0 ${MODULE_TYPE_COLORS[mod.type]}`}>
