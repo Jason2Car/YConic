@@ -32,16 +32,29 @@ export default function IntroPage() {
     setStatus("Generating your onboarding modules with AI...");
 
     try {
-      // Build a prompt asking the AI to generate seed modules
-      const seedPrompt = `Based on the following onboarding questionnaire, generate 3-5 starter modules for this project. Include a mix of RICH_TEXT, INTERACTIVE_VISUAL, and CODE_EDITOR modules.
+      // Build a prompt using personalization rules from sweet-kepler
+      const seedPrompt = `You are generating the initial module layout for an onboarding project. Follow the Adaptive Learning Architect approach:
 
+PHASE 1 — ANALYZE the questionnaire:
 GOALS: ${data.goals || "General onboarding"}
 BASELINE SKILLS: ${data.baselineSkills?.join(", ") || "None specified"}
 ADDITIONAL NOTES: ${data.customSkills || "None"}
-RULES/STYLE: ${data.rules || "None"}
+RULES/STYLE GUIDE: ${data.rules || "None"}
 REFERENCES: ${data.examples?.map((e) => `${e.label}: ${e.value}`).join(", ") || "None"}
 
-Generate the modules now. Start with a Welcome & Overview rich text module, then add relevant visuals and code exercises based on the goals.`;
+PHASE 2 — GAP ANALYSIS: Identify which topics need foundational coverage vs standard vs advanced based on the baseline skills.
+
+PHASE 3 — PATH CONSTRUCTION: Create 3-5 modules in a logical learning sequence. Rules:
+- Start with a Welcome & Overview (RICH_TEXT) that sets context and expectations
+- Include at least one INTERACTIVE_VISUAL if goals mention processes, workflows, or architecture
+- Include at least one CODE_EDITOR if goals mention technical/coding skills
+- Calibrate depth: foundational for unknown topics, standard for partial knowledge, advanced for proficient areas
+- End with a competency checkpoint module
+- Keep module titles concise (≤ 6 words)
+
+PHASE 4 — GENERATE: For each module, output a complete JSON block with full content. Make content substantial and tailored to the stated goals.
+
+Generate all modules now as separate JSON blocks.`;
 
       const response = await fetch("/api/ai/chat", {
         method: "POST",
