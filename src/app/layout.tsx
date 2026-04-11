@@ -2,20 +2,18 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-    title: "Onboarding Project Builder",
-    description: "Build rich onboarding experiences for your team",
+  title: "Onboarding Project Builder",
+  description: "AI-assisted onboarding experience builder for student organizations",
 };
 
-export default function RootLayout({
-    children,
-}: {
-    children: React.ReactNode;
-}) {
-    return (
-        <html lang="en" className="dark">
-            <body className="bg-[#1e1e1e] text-[#cccccc] h-screen overflow-hidden">
-                {children}
-            </body>
-        </html>
-    );
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+      </head>
+      <body>{children}</body>
+    </html>
+  );
 }
