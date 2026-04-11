@@ -12,7 +12,7 @@ Implement the Onboarding Project Builder as a full-stack Next.js 14 application 
 
 - [ ] 1. Scaffold Next.js 14 project with core tooling
   - Initialize Next.js 14 app with App Router, TypeScript strict mode, and Tailwind CSS
-  - Install and configure shadcn/ui (add Button, Input, Textarea, Dialog, Toast, Card, Badge primitives)
+  - Install and configure Radix UI primitives (Dialog, Dropdown Menu, ScrollArea, Select, Separator, Tooltip)
   - Set up ESLint + Prettier with TypeScript rules
   - Configure path aliases (`@/` → `src/`) in `tsconfig.json`
   - Create base layout (`src/app/layout.tsx`) with Tailwind globals and font setup
@@ -39,22 +39,23 @@ Implement the Onboarding Project Builder as a full-stack Next.js 14 application 
     - _Requirements: 1.1, 1.3_
 
   - [ ] 3.2 Build login page
-    - Create `src/app/(auth)/login/page.tsx` with a "Sign in with Google" button using shadcn/ui
+    - Create `src/app/(auth)/login/page.tsx` with a "Sign in with Google" button
     - Add auth guard middleware (`src/middleware.ts`) that redirects unauthenticated requests to `/login` for all `/dashboard` and `/builder` routes
     - _Requirements: 1.1_
 
-- [ ] 4. Set up tRPC with project router
-  - [ ] 4.1 Initialize tRPC infrastructure
-    - Install `@trpc/server`, `@trpc/client`, `@trpc/react-query`, `@tanstack/react-query`, `zod`
-    - Create `src/server/trpc/trpc.ts` with context (session + db), `publicProcedure`, and `protectedProcedure`
-    - Create `src/app/api/trpc/[trpc]/route.ts` handler
-    - Create `src/lib/trpc/client.ts` and `src/lib/trpc/provider.tsx` for client-side usage
+- [ ] 4. Set up REST API routes with Zod validation
+  - [ ] 4.1 Initialize API route infrastructure
+    - Create REST route handlers under `src/app/api/` with Zod input validation on all endpoints
+    - Create `src/app/api/projects/route.ts` (GET list, POST create)
+    - Create `src/app/api/projects/[projectId]/route.ts` (GET, PUT, DELETE)
     - _Requirements: 1.1_
 
-  - [ ] 4.2 Implement `project` tRPC router
-    - Write `src/server/trpc/router/project.ts` with procedures: `create` (writes `Project` row with `stage: "init"`), `list` (returns only caller's projects), `getById` (includes modules), `update`, `delete` (hard delete with cascade)
-    - Add Zod input schemas for each procedure
-    - Wire into root router at `src/server/trpc/index.ts`
+  - [ ] 4.2 Implement project CRUD routes
+    - `POST /api/projects` — creates `Project` row with `stage: "edit"`, Zod validates title (required, max 200) and description (max 2000)
+    - `GET /api/projects` — returns all projects with modules ordered by position
+    - `GET /api/projects/:id` — returns project with modules (404 if not found)
+    - `PUT /api/projects/:id` — updates metadata with `.strict()` Zod schema to prevent unintended field writes
+    - `DELETE /api/projects/:id` — hard delete with cascade
     - _Requirements: 0.1, 1.1, 1.2, 1.3_
 
   - [ ]* 4.3 Write unit tests for project CRUD procedures
@@ -442,25 +443,32 @@ Implement the Onboarding Project Builder as a full-stack Next.js 14 application 
 
 ## Team Structure & Ownership
 
-| Role | Owner | Sprints | Responsibilities |
+This is a 4-person team building the project in a single-day hackathon.
+
+| Role | Owner | Focus Area | Responsibilities |
 |---|---|---|---|
-| **AI / Backend Lead** | Jason C. | S1–S2 | Prisma schema, tRPC routers, AI chat route (`streamObject` + Zod), session.applyChange transaction, auto-save logic |
-| **Frontend / Editor Lead** | Jason C. | S2–S3 | Builder workspace (split-pane, ChatPanel, PreviewPanel), Tiptap/Monaco/Mermaid module editors, approve/reject UI |
-| **Joinee / Publishing Lead** | Jason C. | S3–S4 | Publish flow, `/p/[slug]` Joinee view, localStorage progress, ProgressBar, ModuleList, code execution proxy |
-| **QA / Testing Lead** | Jason C. | S4–S5 | Property tests (P1–P10), integration tests, Playwright smoke tests, accessibility audit, performance review |
+| **AI / Backend** | Jason C. | Backend + AI integration | Prisma schema, API routes, AI chat route (`generateObject` + Zod), session logic, auto-save, code execution proxy |
+| **Frontend / Editor** | Aarush T. | Builder workspace UI | Split-pane workspace, ChatPanel, EditorPanel, Tiptap/Monaco/Mermaid module editors, approve/reject UI |
+| **Joinee / Publishing** | Prem B. | Joinee experience + infra | Publish flow, `/p/[slug]` Joinee view, localStorage progress, ProgressBar, dashboard page |
+| **Market / Presentation** | Sarah L. | Strategy + demo | Competitive analysis, pricing positioning, demo script, presentation deck, user persona validation |
 
-Note: This is a solo-developer project. Jason owns all four roles sequentially across sprints, which is why the sprint assignments are staggered rather than parallel. The parallelization opportunities below apply if additional team members join.
-
-**Parallelization opportunities**: In Sprint 2, the AI/Backend Lead can implement the `/api/ai/chat` route and session procedures while the Frontend Lead builds the workspace shell and ChatPanel UI. In Sprint 3, the Frontend Lead can implement module editors while the Joinee Lead starts the code execution proxy and Piston client.
+**Parallelization**: Jason, Aarush, and Prem code in parallel — Jason wires the API layer while Aarush builds the editor UI and Prem builds the Joinee view and dashboard. Sarah prepares the market analysis and presentation concurrently. All three developers integrate at the end for the full end-to-end flow test.
 
 ## Contingency Plan
 
-If the team falls behind schedule, the following Sprint 3 items can be deferred to MVP-plus without breaking the core flow:
+Given the single-day hackathon timeline, the following items can be deferred without breaking the core demo flow:
+- **RevisionHistoryBar** (undo UI) — the undo mechanism works in the backend; the visual history bar is polish
 - **Mermaid annotation interactivity** (hover/click tooltips) — diagrams still render, just without interactive annotations
 - **Code execution proxy** (Piston integration) — the code editor still works for viewing/editing; the "Run" button shows a "coming soon" message
-- **Property tests P5–P8** — these are marked optional (`*`) and can be written post-launch
+- **Property tests P5–P8** — these are marked optional (`*`) and can be written post-hackathon
+- **NextAuth authentication** — the app works without auth for the demo; auth is a post-hackathon hardening task
 
-Sprint 5 includes 2 days of contingency time (tasks 29–30) explicitly reserved for fixing integration issues discovered during end-to-end validation.
+**Rough hour estimates per sprint** (for reference if extending beyond hackathon):
+- Sprint 1 (Foundation): ~16 hours — schema, API routes, dashboard
+- Sprint 2 (AI + Workspace): ~24 hours — densest sprint; AI chat, session logic, workspace UI, auto-save
+- Sprint 3 (Module Types): ~20 hours — three editor integrations, code execution proxy
+- Sprint 4 (Joinee + Publish): ~16 hours — public view, progress tracking, publish flow
+- Sprint 5 (Polish + QA): ~14 hours — error handling, tests, accessibility, performance
 
 ## Notes
 

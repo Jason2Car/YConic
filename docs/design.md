@@ -13,21 +13,21 @@ At demo day, a judge should be able to: (1) create a new project from the dashbo
 | Layer | Technology | Justification |
 |---|---|---|
 | Frontend Framework | **Next.js 14 (App Router)** | Server components reduce client bundle size; built-in API routes eliminate a separate backend service; excellent Vercel deployment story |
-| Language | **TypeScript** | End-to-end type safety across frontend and backend; required for tRPC |
-| Styling | **Tailwind CSS + shadcn/ui** | Rapid UI development with accessible, composable components |
-| API Layer | **tRPC v11** | Type-safe RPC without code generation; eliminates REST boilerplate; shares types between client and server |
-| AI Integration | **Vercel AI SDK (`ai` package)** | First-class streaming support; provider-agnostic (OpenAI/Anthropic); `useChat` hook simplifies chat UI; `streamObject` enables structured JSON output from LLM |
-| LLM Provider | **OpenAI GPT-4o** | Strong instruction-following for structured content generation; JSON mode for reliable module/visual output |
-| ORM | **Prisma** | Type-safe database client; schema-first migrations; excellent Next.js integration |
-| Database | **PostgreSQL** | Relational model fits project/module hierarchy; JSONB columns for flexible module content |
-| Code Execution | **Piston API** | Open-source, sandboxed, multi-language execution engine; supports Python, JavaScript, TypeScript; self-hostable |
-| Interactive Visuals | **Mermaid.js** | Text-to-diagram rendering; AI can generate Mermaid syntax reliably; supports flowcharts, sequence diagrams, and annotated steps |
-| Code Editor | **Monaco Editor (`@monaco-editor/react`)** | VS Code-grade editing experience; syntax highlighting for Python/JS/TS; large file performance |
+| Language | **TypeScript** | End-to-end type safety across frontend and backend |
+| Styling | **Tailwind CSS + Radix UI** | Rapid UI development with accessible, composable primitives (Dialog, Dropdown, ScrollArea, Select, Separator, Tooltip) |
+| API Layer | **REST Route Handlers + Zod** | Next.js App Router route handlers with Zod input validation on all endpoints; `.strict()` schemas prevent unintended field writes |
+| AI Integration | **Vercel AI SDK (`ai` package)** | Provider-agnostic structured output; `generateObject` produces Zod-validated JSON from the LLM in a single call |
+| LLM Provider | **xAI Grok-4** | Strong instruction-following for structured content generation; reliable JSON mode output via `generateObject` |
+| ORM | **Prisma** | Type-safe database client; schema-first migrations; Neon serverless adapter via `@prisma/adapter-neon` |
+| Database | **Neon PostgreSQL (serverless)** | Serverless Postgres with automatic connection pooling via `@neondatabase/serverless`; scales to zero; JSONB columns for flexible module content |
+| Code Execution | **Piston API** | Open-source, sandboxed, multi-language execution engine; supports Python, JavaScript, TypeScript; self-hostable via `PISTON_API_URL` env var |
+| Interactive Visuals | **Mermaid.js** | Text-to-diagram rendering; AI can generate Mermaid syntax reliably (appears extensively in training data); supports flowcharts, sequence diagrams, and annotated steps |
+| Code Editor | **Monaco Editor (`@monaco-editor/react`)** | VS Code-grade editing experience; syntax highlighting for Python/JS/TS; lazy-loaded with `next/dynamic({ ssr: false })` |
 | Rich Text | **Tiptap** | Headless, extensible rich text editor; React-native; ProseMirror-based |
-| Auth | **NextAuth.js (Auth.js v5)** | Designer authentication; supports OAuth (Google/GitHub) and credentials; session management |
-| State Management | **Zustand** | Lightweight client state for session revision history and UI state |
-| Validation | **Zod** | Runtime schema validation shared between tRPC procedures and AI output schemas |
-| Deployment | **Vercel** | Zero-config Next.js deployment; edge functions for low-latency AI streaming |
+| State Management | **Zustand** | Lightweight client state for project data, editor UI state, and chat history (three stores: `projectStore`, `editorStore`, `chatStore`) |
+| Validation | **Zod** | Runtime schema validation on all REST endpoints and AI output schemas |
+| Testing | **Vitest + fast-check** | Property-based testing with 100+ iterations per property; vitest for test runner |
+| Deployment | **Vercel** | Zero-config Next.js deployment; edge functions for low-latency AI responses |
 
 ---
 
@@ -49,8 +49,8 @@ stateDiagram-v2
 **Trigger**: Designer submits the "New Project" form (title + description).
 
 **What happens**:
-1. `project.create` tRPC mutation fires, writing a `Project` row with `stage: "init"`.
-2. The server scaffolds a blank module page entry in the database.
+1. `POST /api/projects` creates a `Project` row with `stage: "init"`.
+2. The server scaffolds a blank project entry in the database.
 3. The client is redirected to `/builder/[projectId]/intro`.
 
 **Key constraint**: No modules exist yet. The project is a shell.
@@ -93,11 +93,13 @@ stateDiagram-v2
 3. Every accepted change is auto-saved within 5 seconds.
 4. When satisfied, the Designer publishes the project.
 
+**Goal-Alignment Scoring**: After each AI-generated change is approved, the system runs a lightweight goal-alignment check — a secondary `generateObject` call that compares the Intro questionnaire goals against the current module set and produces a coverage score (0–100%). The score is displayed in the workspace status bar. If it drops below 70%, the system surfaces specific gap suggestions (e.g., "Your goals mention 'Git workflow' but no module covers version control"). This closes the feedback loop between the Designer's stated intent and the AI's output throughout the Edit stage.
+
 ---
 
 ## Architecture
 
-The system follows a **monorepo, full-stack Next.js** architecture. The Next.js App Router handles both the React frontend and the backend API (via tRPC route handlers and Server Actions). A single PostgreSQL database stores all persistent data. The Piston API runs as a separate service (self-hosted or via the public endpoint) for sandboxed code execution.
+The system follows a **monorepo, full-stack Next.js** architecture. The Next.js App Router handles both the React frontend and the backend API via REST Route Handlers with Zod validation. Neon serverless PostgreSQL stores all persistent data via Prisma with the `@prisma/adapter-neon` driver. The Piston API runs as a separate service (self-hosted or via the public endpoint) for sandboxed code execution.
 
 ```mermaid
 graph TB
@@ -106,41 +108,41 @@ graph TB
         J[Joinee UI<br/>Published Project]
     end
 
-    subgraph Next.js App (Vercel)
+    subgraph "Next.js App (Vercel)"
         AR[App Router<br/>React Server Components]
-        TR[tRPC Router<br/>/api/trpc]
+        API[REST API Routes<br/>/api/projects, /api/modules]
         AI_CHAT[AI Chat Handler<br/>/api/ai/chat]
         AI_INTRO[AI Intro Handler<br/>/api/ai/intro]
         CE[Code Exec Proxy<br/>/api/execute]
     end
 
     subgraph External Services
-        OAI[OpenAI GPT-4o]
+        XAI[xAI Grok-4]
         PISTON[Piston API<br/>Code Sandbox]
     end
 
     subgraph Data
-        PG[(PostgreSQL<br/>via Prisma)]
+        PG[(Neon PostgreSQL<br/>via Prisma + Neon Adapter)]
         LS[Browser<br/>localStorage]
     end
 
-    D -->|tRPC calls| TR
-    D -->|streaming fetch| AI_CHAT
+    D -->|REST + Zod| API
+    D -->|fetch| AI_CHAT
     D -->|questionnaire submit| AI_INTRO
     D -->|code submit| CE
-    J -->|tRPC calls| TR
+    J -->|REST| API
     J <-->|progress| LS
     AR --> PG
-    TR --> PG
-    AI_CHAT -->|stream| OAI
-    AI_INTRO -->|stream| OAI
+    API --> PG
+    AI_CHAT -->|generateObject| XAI
+    AI_INTRO -->|generateObject| XAI
     CE --> PISTON
 ```
 
 ### Key Architectural Decisions
 
-**Decision 1: Monolithic Next.js vs. Separate Backend**
-A single Next.js app is chosen over a separate Express/Fastify backend. This reduces operational complexity for a business onboarding tool, keeps deployment simple (single Vercel project), and allows tRPC to share types without a separate package.
+**Decision 1: Monolithic Next.js with REST Route Handlers**
+A single Next.js app with REST Route Handlers (not a separate Express/Fastify backend) is chosen. This reduces operational complexity for a business onboarding tool, keeps deployment simple (single Vercel project), and Zod schemas on every endpoint provide runtime type safety. All API routes follow RESTful conventions: `POST /api/projects`, `GET /api/projects/:id`, `PUT /api/modules/:id`, etc.
 
 **Decision 2: Piston API for Code Execution**
 Piston runs each submission in an isolated container with resource limits, satisfying the sandboxing requirement. The 15-second timeout is enforced at the proxy layer (`/api/execute`) before forwarding to Piston, giving us control independent of Piston's own limits.
@@ -148,8 +150,8 @@ Piston runs each submission in an isolated container with resource limits, satis
 **Decision 3: Mermaid.js for Interactive Visuals**
 The AI can reliably generate Mermaid syntax (it appears in training data extensively). Mermaid renders to SVG in the browser, is responsive by default, and supports the required visual types (flowcharts, sequence diagrams, annotated steps). Custom click/hover interactivity is layered on top via Mermaid's `securityLevel` and event callbacks.
 
-**Decision 4: Structured AI Output via `streamObject`**
-Rather than asking the AI to return free-form text, the AI route uses Vercel AI SDK's `streamObject` with a Zod schema. This ensures the AI always returns a valid `ProposedChange` object (module additions, edits, deletions) that can be directly applied to the project state.
+**Decision 4: Structured AI Output via `generateObject`**
+Rather than asking the AI to return free-form text, the AI route uses Vercel AI SDK's `generateObject` with a Zod schema. This ensures the AI always returns a valid change object (module additions, edits, deletions) that can be directly applied to the project state. The schema uses a flat object design (not nested discriminated unions) to maximize AI compliance — a `cleanResponse()` post-processor strips cross-type fields.
 
 **Decision 5: AI Context Management and Token Budget**
 The Edit-stage system prompt injects the current `ProjectSnapshot` (module IDs, titles, types, and a content summary) into the AI context. As projects grow, the full content of all modules would exceed token limits. The truncation strategy is:
@@ -158,7 +160,9 @@ The Edit-stage system prompt injects the current `ProjectSnapshot` (module IDs, 
 - **Other modules include a content summary**: for RICH_TEXT, the first 200 characters of HTML stripped of tags; for CODE_EDITOR, the language and first 5 lines of starterCode; for INTERACTIVE_VISUAL, the visualType and annotation count.
 - **Conversation history is windowed**: only the last 8 messages are sent to the AI, keeping the total prompt under ~4,000 tokens of context even for a 20-module project.
 
-At GPT-4o / Grok-4's 128K context window, this strategy provides ample headroom. The `buildSystemPrompt(modules)` function in `prompts.ts` implements this truncation.
+At Grok-4's 128K context window, this strategy provides ample headroom. The `buildSystemPrompt(modules)` function in `prompts.ts` implements this truncation.
+
+**`generateObject` Zod Retry Behavior**: When the AI returns a response that fails Zod validation, the system retries exactly once with the following amended system prompt appended: `"Your previous response failed schema validation. You MUST return a JSON object matching this exact structure: { changeType: 'add_module' | 'update_module' | 'delete_module', description: string, contentType: 'RICH_TEXT' | 'INTERACTIVE_VISUAL' | 'CODE_EDITOR', title?: string, moduleId?: string, ...fields for chosen contentType only }. Do NOT include fields from other content types. Do NOT wrap in markdown code blocks."` If the retry also fails, the route returns `{ error: "AI assistant temporarily unavailable." }` and the Designer's message is preserved in chat history for manual retry.
 
 ---
 
@@ -169,96 +173,109 @@ At GPT-4o / Grok-4's 128K context window, this strategy provides ample headroom.
 ```
 src/
 ├── app/
-│   ├── (auth)/
-│   │   └── login/page.tsx                  # Designer login
 │   ├── dashboard/
-│   │   └── page.tsx                        # Project list
+│   │   └── page.tsx                        # Project list + create/delete
 │   ├── builder/[projectId]/
-│   │   ├── intro/page.tsx                  # Stage 2: Intro questionnaire
-│   │   └── edit/page.tsx                   # Stage 3: Edit workspace
-│   └── p/[slug]/
-│       └── page.tsx                        # Joinee public view
+│   │   ├── edit/page.tsx                   # Stage 3: Edit workspace
+│   │   └── preview/page.tsx                # Full-page preview
+│   ├── p/[slug]/
+│   │   ├── page.tsx                        # Joinee public view (server component)
+│   │   └── JoineeView.tsx                  # Joinee client component with progress
+│   └── api/
+│       ├── ai/chat/route.ts                # AI chat (generateObject + Zod)
+│       ├── projects/route.ts               # Project list + create
+│       ├── projects/[projectId]/route.ts   # Project CRUD
+│       ├── projects/[projectId]/modules/route.ts  # Module create
+│       ├── projects/[projectId]/publish/route.ts  # Publish with slug generation
+│       ├── modules/[moduleId]/route.ts     # Module update + delete
+│       └── execute/route.ts                # Code execution proxy (Piston)
 ├── components/
-│   ├── init/
-│   │   └── NewProjectForm.tsx              # Stage 1: title + description form
-│   ├── intro/
-│   │   ├── IntroQuestionnaire.tsx          # Goals / baseline / examples form
-│   │   ├── GoalsInput.tsx                  # Free-text goals field
-│   │   ├── BaselineChecklist.tsx           # Prior knowledge checklist
-│   │   └── ExamplesUpload.tsx              # File/URL reference input
-│   ├── builder/
-│   │   ├── ChatPanel.tsx                   # AI conversation interface (Edit stage)
-│   │   ├── PreviewPanel.tsx                # Live project preview
-│   │   ├── ProposedChangeCard.tsx          # Approve/reject UI
-│   │   └── RevisionHistoryBar.tsx          # Undo control
-│   ├── modules/
-│   │   ├── ModuleStub.tsx                  # Placeholder card for AI-seeded modules
+│   ├── editor/                             # Builder workspace (VS Code-inspired)
+│   │   ├── EditWorkspace.tsx               # Main workspace shell
+│   │   ├── ChatPanel.tsx                   # AI conversation interface
+│   │   ├── EditorPanel.tsx                 # Module editor area
+│   │   ├── InlinePreview.tsx               # Live preview panel
+│   │   ├── ModuleExplorer.tsx              # Sidebar module list
+│   │   ├── ModuleTabs.tsx                  # Tab bar for open modules
+│   │   ├── ActivityBar.tsx                 # Left icon bar
+│   │   ├── TitleBar.tsx                    # Top bar with publish button
+│   │   └── StatusBar.tsx                   # Bottom status bar
+│   ├── modules/                            # Module type editors
 │   │   ├── RichTextModule.tsx              # Tiptap editor/viewer
-│   │   ├── VisualModule.tsx                # Mermaid renderer + interactions
+│   │   ├── VisualModule.tsx                # Mermaid renderer + annotations
 │   │   └── CodeEditorModule.tsx            # Monaco editor + run button
-│   ├── joinee/
-│   │   ├── ModuleList.tsx                  # Ordered module navigation
-│   │   ├── ProgressBar.tsx                 # Completion indicator
-│   │   └── ModuleViewer.tsx                # Read-only module renderer
-│   └── ui/                                 # shadcn/ui primitives
-├── server/
-│   ├── trpc/
-│   │   ├── router/
-│   │   │   ├── project.ts                  # Project CRUD + stage transitions
-│   │   │   ├── module.ts                   # Module CRUD + reorder
-│   │   │   └── session.ts                  # Session management
-│   │   └── index.ts                        # Root tRPC router
-│   └── db/
-│       └── prisma.ts                       # Prisma client singleton
-└── lib/
-    ├── ai/
-    │   ├── schemas.ts                      # Zod schemas for AI output
-    │   ├── prompts.ts                      # Edit-stage system prompt templates
-    │   └── introRules.ts                   # Predefined Intro-stage AI rules
-    └── piston.ts                           # Piston API client
+│   └── preview/                            # Joinee-facing renderers
+│       ├── ProjectPage.tsx                 # Published project layout
+│       ├── PreviewRichText.tsx             # Read-only rich text
+│       ├── PreviewVisual.tsx               # Read-only Mermaid diagram
+│       └── PreviewCode.tsx                 # Read-only code + run
+├── lib/
+│   ├── ai/
+│   │   ├── schemas.ts                      # Zod schemas (ProposedChangeSchema, ModuleContentSchema)
+│   │   └── prompts.ts                      # System prompt builder (buildSystemPrompt)
+│   ├── store/
+│   │   ├── projectStore.ts                 # Project + module state (hydrates from DB)
+│   │   ├── editorStore.ts                  # UI/editor state
+│   │   └── chatStore.ts                    # Chat message state
+│   ├── types.ts                            # Shared TypeScript types (Project, Module, ModuleContent)
+│   └── progress.ts                         # Joinee localStorage progress utilities
+└── server/
+    └── db/
+        └── prisma.ts                       # Prisma client singleton (Neon adapter)
 ```
 
-### tRPC Procedures
+### REST API Endpoints
 
-```typescript
-// Project Router
-project.create(input: { title: string; description: string }) → Project
-project.list() → Project[]
-project.getById(input: { id: string }) → Project & { modules: Module[] }
-project.update(input: { id: string; title?: string; description?: string }) → Project
-project.delete(input: { id: string }) → { success: boolean }
-project.publish(input: { id: string }) → { slug: string; url: string }
+All endpoints use Zod input validation and return structured JSON error responses.
 
-// Module Router
-module.add(input: { projectId: string; type: ModuleType; position: number }) → Module
-module.update(input: { id: string; content: ModuleContent }) → Module
-module.reorder(input: { projectId: string; orderedIds: string[] }) → Module[]
-module.delete(input: { id: string }) → { success: boolean }
+```
+POST   /api/projects                        → Create project (Zod: title required, max 200 chars)
+GET    /api/projects                        → List all projects with modules
+GET    /api/projects/:id                    → Get project with modules (404 if not found)
+PUT    /api/projects/:id                    → Update project metadata (Zod: .strict() prevents extra fields)
+DELETE /api/projects/:id                    → Delete project (cascades to modules)
 
-// Session Router
-session.create(input: { projectId: string }) → Session
-session.applyChange(input: { sessionId: string; change: ProposedChange }) → Project
-session.undo(input: { sessionId: string }) → Project
+POST   /api/projects/:id/modules            → Add module (Zod: type enum, auto-assigns position)
+PUT    /api/modules/:id                     → Update module (Zod: .strict())
+DELETE /api/modules/:id                     → Delete module
+
+POST   /api/projects/:id/publish            → Publish project (generates unique slug with retry)
+
+POST   /api/ai/chat                         → AI chat (generateObject + Zod flat schema → cleanResponse)
+POST   /api/ai/intro                        → AI intro seed (generateObject → SeedLayout)
+POST   /api/execute                         → Code execution proxy (Zod: language enum + code string)
 ```
 
-### AI Route Handler
+### AI Chat Route (`/api/ai/chat`)
 
-`POST /api/ai/chat` — Accepts a conversation history and current project state, streams back a `ProposedChange` object using `streamObject`.
+`POST /api/ai/chat` — Accepts conversation history and current modules, returns a Zod-validated change object via `generateObject`.
 
 ```typescript
 // Request body
 {
-  messages: CoreMessage[];       // conversation history
-  projectSnapshot: ProjectSnapshot; // current project state for context
+  messages: Array<{ role: "user" | "assistant"; content: string }>;
+  modules: Module[];           // current project modules for AI context
+  forceType?: "RICH_TEXT" | "CODE_EDITOR" | "INTERACTIVE_VISUAL";  // from @text/@code/@visual commands
 }
 
-// Streamed response (Zod-validated)
-ProposedChange = {
-  type: "add_module" | "update_module" | "delete_module" | "update_project_meta";
-  description: string;           // human-readable summary shown to designer
-  payload: ModuleAddPayload | ModuleUpdatePayload | ModuleDeletePayload | MetaUpdatePayload;
+// Response — flat Zod-validated change object (cleaned of cross-type fields)
+{
+  changeType: "add_module" | "update_module" | "delete_module";
+  description: string;         // human-readable summary shown to Designer
+  contentType: "RICH_TEXT" | "INTERACTIVE_VISUAL" | "CODE_EDITOR";
+  title?: string;
+  moduleId?: string;           // for update/delete
+  // Fields for the chosen contentType only (others stripped by cleanResponse)
+  html?: string;               // RICH_TEXT
+  language?: string;           // CODE_EDITOR
+  starterCode?: string;        // CODE_EDITOR
+  visualType?: string;         // INTERACTIVE_VISUAL
+  mermaidDefinition?: string;  // INTERACTIVE_VISUAL
+  annotations?: Annotation[];  // INTERACTIVE_VISUAL
 }
 ```
+
+The flat schema design (single object with optional fields per type) is intentional — it maximizes AI compliance compared to nested discriminated unions. The `cleanResponse()` post-processor strips fields that don't belong to the chosen `contentType`.
 
 ### Code Execution Proxy
 
@@ -276,17 +293,27 @@ ProposedChange = {
 
 ## Data Models
 
-### Prisma Schema
+### Prisma Schema (Neon PostgreSQL)
 
 ```prisma
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
+  id        String    @id @default(cuid())
+  email     String    @unique
   name      String?
   image     String?
   projects  Project[]
   sessions  Session[]
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 }
 
 model Project {
@@ -295,8 +322,9 @@ model Project {
   description String    @default("")
   slug        String?   @unique          // set on publish
   published   Boolean   @default(false)
-  ownerId     String
-  owner       User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  stage       String    @default("init") // "init" | "intro" | "edit"
+  ownerId     String?                    // optional until auth is implemented
+  owner       User?     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   modules     Module[]
   sessions    Session[]
   createdAt   DateTime  @default(now())
@@ -304,15 +332,15 @@ model Project {
 }
 
 model Module {
-  id        String      @id @default(cuid())
+  id        String   @id @default(cuid())
   projectId String
-  project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  type      ModuleType
-  title     String      @default("Untitled Module")
-  position  Int                           // 0-indexed ordering
-  content   Json                          // ModuleContent (see below)
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  type      String   // "RICH_TEXT" | "INTERACTIVE_VISUAL" | "CODE_EDITOR" (String, not enum, for extensibility)
+  title     String   @default("Untitled Module")
+  position  Int      // 0-indexed ordering
+  content   Json     // ModuleContent discriminated union (see TypeScript types below)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([projectId, position])
 }
@@ -321,19 +349,15 @@ model Session {
   id        String   @id @default(cuid())
   projectId String
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String?                      // optional until auth is implemented
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   history   Json     @default("[]")      // RevisionEntry[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
-
-enum ModuleType {
-  RICH_TEXT
-  INTERACTIVE_VISUAL
-  CODE_EDITOR
-}
 ```
+
+Note: `Module.type` is a `String` (not a Prisma enum) and `Module.content` is `Json` — this is intentional for module type extensibility. New module types can be added without database migrations. `ownerId` and `userId` are optional (`String?`) to allow the app to function without authentication during development; they become required when NextAuth is integrated.
 
 ### TypeScript Content Types
 
@@ -506,7 +530,11 @@ interface JoineeProgress {
 
 ### Go-to-Market and Pricing Positioning
 
-The target market is businesses with 20–500 employees that onboard 5–50 new hires per quarter — too small for enterprise LMS tools (WorkRamp at $25K+/year, Lessonly at $15K+/year) but too complex for a shared Google Doc. Pricing would be positioned between Notion ($16/user/mo for the workspace) and Trainual ($250/mo flat): a per-project model at ~$29/mo for unlimited projects and Joinees, or a free tier with 1 published project and a paid tier at $49/mo for teams. The zero-friction Joinee access (no per-seat cost for new hires) is a key pricing differentiator against per-user tools like Trainual and Confluence.
+The target market is businesses with 20–500 employees that onboard 5–50 new hires per quarter — too small for enterprise LMS tools (WorkRamp at $25K+/year, Lessonly at $15K+/year) but too complex for a shared Google Doc. Pricing would be positioned between Notion ($16/user/mo for the workspace) and Trainual ($250/mo flat): a per-project model at ~$29/mo for unlimited projects and Joinees, or a free tier with 1 published project and a paid tier at $49/mo for teams. The zero-friction Joinee access (no per-seat cost for new hires) is a key pricing differentiator against per-user tools like Trainual and Confluence. Note: pricing and positioning hypotheses require validation with 3–5 target Designer interviews before committing to the per-project model.
+
+**Total Addressable Market**: There are approximately 6 million SMBs in the US with 20–500 employees (US Census Bureau). Assuming 30% have a recurring onboarding need and would pay $29–49/mo, the addressable market is ~$650M–$1B annually in the US alone.
+
+**Why Incumbents Can't Simply Add AI**: Trainual and WorkRamp are built on per-seat pricing models where every Joinee requires a paid account — their revenue model structurally prevents zero-friction access. Their content models are page/wiki-based, not module-typed with JSONB discriminated unions, so adding structured AI output (Zod-validated `ProposedChange` objects that map directly to typed module CRUD operations) would require a fundamental content architecture rewrite. Confluence's plugin ecosystem is Java-based and server-rendered, making client-side Mermaid/Monaco integration architecturally incompatible without a ground-up rebuild of the editor surface.
 
 ### Why We Win
 
@@ -581,7 +609,7 @@ The `$transaction` block ensures that if any step fails (e.g., the module ID doe
 
 ## Scalability Considerations
 
-**JSONB History Pruning**: The `Session.history` column stores full `ProjectSnapshot` objects per revision, which grows unboundedly. Mitigation: cap history at 50 entries per session; when the cap is reached, prune the oldest entries. For long-lived projects, archive old sessions to a separate `ArchivedSession` table.
+**JSONB History Pruning**: The `Session.history` column stores full `ProjectSnapshot` objects per revision, which grows unboundedly. Mitigation: cap history at 50 entries per session. Pruning is implemented inline in `session.applyChange` — after appending the new `RevisionEntry`, if `history.length > 50`, the oldest entries are sliced off (`history = history.slice(-50)`) before writing back to the database. This keeps the pruning atomic within the same transaction. For long-lived projects, archive old sessions to a separate `ArchivedSession` table via a scheduled cleanup.
 
 **Module Count Soft Limits**: Projects are soft-limited to 20 modules. The Intro AI rules already cap at 5–7 modules, and the UI displays a warning at 15+ modules. This prevents `ProjectSnapshot` objects from becoming excessively large.
 
@@ -607,7 +635,7 @@ This pattern means the database schema never needs to change for new module type
 
 ### Future: Third-Party Integration API (Roadmap)
 
-The current system has no public API for third-party integrations. For a business-facing tool, this is a meaningful gap. The planned roadmap includes: (1) a REST API for programmatic project creation (e.g., an HRIS triggers onboarding project creation when a new hire is added), (2) a Notion/Confluence import endpoint that converts existing wiki pages into Module objects, (3) a webhook on publish that notifies external systems (Slack, email, HRIS) when a project goes live, and (4) an embeddable Joinee widget (`<iframe>` or Web Component) for embedding onboarding experiences in existing intranets. These are post-MVP features but the architecture supports them — the tRPC router pattern makes adding new procedures straightforward, and the `publicProcedure` / `protectedProcedure` split already provides the auth boundary.
+The current system has no public API for third-party integrations. For a business-facing tool, this is a meaningful gap. The planned roadmap includes: (1) a REST API for programmatic project creation (e.g., an HRIS triggers onboarding project creation when a new hire is added), (2) a Notion/Confluence import endpoint that converts existing wiki pages into Module objects, (3) a webhook on publish that notifies external systems (Slack, email, HRIS) when a project goes live, and (4) an embeddable Joinee widget (`<iframe>` or Web Component) for embedding onboarding experiences in existing intranets. These are post-MVP features but the architecture supports them — the REST route handler pattern makes adding new endpoints straightforward, and the Zod validation layer provides the input safety boundary. For server-to-server calls (HRIS triggers, CI/CD pipelines), the planned authentication strategy is API key-based: a `Designer.apiKey` field (hashed, rotatable) checked via middleware that validates the `Authorization: Bearer <key>` header, bypassing the session-based auth flow entirely.
 
 ---
 
@@ -621,6 +649,7 @@ The current system has no public API for third-party integrations. For a busines
 | **Monaco/Mermaid SSR crash** in Next.js | Medium | Medium | Lazy-load both with `next/dynamic({ ssr: false })`; already implemented | Show fallback skeleton; raw Mermaid syntax displayed as code block |
 | **Vercel function timeout** conflicts with 15s Piston timeout | Low | Medium | Set `maxDuration: 30` on execute route; `AbortController` at 15s is well within Vercel's 30s limit | Timeout message displayed to Joinee |
 | **Demo-day degraded mode** (AI + Piston both down) | Low | High | Pre-populate a demo project with all three module types before the demo | The entire editor UI, preview, publish flow, and Joinee view work without AI or Piston — only AI chat and code execution are affected |
+| **Neon database unavailable** during demo | Low | Critical | Neon has 99.95% uptime SLA; use Neon's connection retry with exponential backoff | Static demo mode: serve a hardcoded project from `src/lib/mock/demoProject.ts` when DB is unreachable; dashboard shows the demo project, edit workspace loads from local state, Joinee view renders from static data |
 
 **Back-of-envelope AI cost estimate for demo day**: Each `generateObject` call sends ~2,000 tokens of system prompt + ~500 tokens of conversation history + ~1,500 tokens of ProjectSnapshot context = ~4,000 input tokens. The response averages ~800 tokens. At xAI Grok pricing (~$5/M input, ~$15/M output), each AI call costs ~$0.03. A typical demo session involves 5–10 AI calls = $0.15–$0.30 per demo. With 20 concurrent demo users, total cost is ~$3–$6 for the entire demo period. A $25 spending cap provides ample headroom with a 4x safety margin.
 
@@ -629,14 +658,14 @@ The current system has no public API for third-party integrations. For a busines
 ## Error Handling
 
 ### AI Response Failures
-- If the OpenAI API returns an error or times out, the chat route returns a structured error message to the Designer: `"The AI assistant is temporarily unavailable. Please try again."`
-- Partial streamed responses are discarded; the Designer's message is retained in the chat history so they can retry.
-- The `ProposedChange` Zod schema validation failure (malformed AI output) triggers a retry with an amended system prompt instructing the model to fix its output format.
+- If the xAI API returns an error or times out, the chat route returns a structured error message to the Designer: `{ error: "AI assistant temporarily unavailable.", details: message }` with status 500.
+- The Designer's message is retained in the chat history so they can retry.
+- The `generateObject` Zod schema validation failure (malformed AI output) triggers a retry with an amended system prompt instructing the model to fix its output format (see `generateObject` Zod Retry Behavior above).
 
 ### Auto-Save Failures (Requirement 7.3)
 - Auto-save uses an optimistic write pattern: the UI reflects the accepted change immediately.
-- If the tRPC `applyChange` mutation fails, a toast notification informs the Designer: `"Auto-save failed. Your changes are preserved in this session."`
-- The unsaved `RevisionEntry` is held in Zustand state and retried with exponential backoff (1s, 2s, 4s) up to 3 times.
+- If the `PUT /api/modules/:id` call fails, a toast notification informs the Designer: `"Auto-save failed. Your changes are preserved in this session."`
+- The unsaved change is held in Zustand state and retried with exponential backoff (1s, 2s, 4s) up to 3 times.
 - If all retries fail, the Designer is prompted to manually copy their work or reload.
 
 ### Code Execution Errors
@@ -645,12 +674,12 @@ The current system has no public API for third-party integrations. For a busines
 - **Sandbox unavailable**: If Piston is unreachable, the proxy returns a 503 with a user-facing message: `"Code execution is temporarily unavailable."`.
 
 ### Module Deletion with Unsaved Content (Requirement 3.5)
-- The `module.delete` tRPC procedure checks if the module has a pending unsaved diff in the active session.
-- If unsaved content exists, the procedure returns a `PRECONDITION_FAILED` tRPC error, which the frontend intercepts to show a confirmation dialog.
+- The `DELETE /api/modules/:id` endpoint checks if the module has pending unsaved changes.
+- If unsaved content exists, the endpoint returns a 409 (Conflict) response, which the frontend intercepts to show a confirmation dialog.
 
 ### Project Deletion Confirmation (Requirement 1.4)
-- Deletion is a two-step tRPC call: `project.requestDelete` (returns a confirmation token) → `project.confirmDelete(token)`.
-- The token expires after 60 seconds, preventing accidental deletion from stale UI state.
+- The dashboard shows a confirmation dialog before calling `DELETE /api/projects/:id`.
+- The dialog requires explicit user action to proceed, preventing accidental deletion.
 
 ---
 
@@ -694,12 +723,12 @@ Tag format: // Feature: onboarding-project-builder, Property {N}: {property_text
 - **Code execution**: submit Python/JS/TS code and verify output (integration test against Piston)
 - **Timeout behavior**: submit an infinite loop and verify timeout message
 - **Hint/solution reveal**: configure a solution, fail an attempt, verify reveal works
-- **Auto-save failure**: mock a failed tRPC mutation and verify toast + retry behavior
+- **Auto-save failure**: mock a failed API call and verify toast + retry behavior
 - **Joinee no-auth access**: access a published project URL without a session cookie
 
 ### Integration Tests
 
-- **End-to-end AI session**: send a natural language instruction and verify a `ProposedChange` is returned within 10 seconds (mocked OpenAI response)
+- **End-to-end AI session**: send a natural language instruction and verify a change object is returned within 10 seconds (mocked xAI response)
 - **Auto-save timing**: accept a change and verify database write occurs within 5 seconds
 - **Code execution latency**: submit code and verify output within 15 seconds
 
@@ -717,10 +746,10 @@ Tag format: // Feature: onboarding-project-builder, Property {N}: {property_text
 ### Sprint 1 — Foundation (Week 1–2)
 **Goal**: Working auth, project CRUD, and database schema.
 
-- Set up Next.js 14 project with TypeScript, Tailwind, shadcn/ui
-- Configure Prisma + PostgreSQL schema (User, Project, Module, Session)
-- Implement NextAuth.js with Google OAuth for Designer login
-- Build tRPC router: `project.create`, `project.list`, `project.getById`, `project.update`, `project.delete`
+- Set up Next.js 14 project with TypeScript, Tailwind CSS, Radix UI
+- Configure Prisma + Neon PostgreSQL schema (User, Project, Module, Session)
+- Implement authentication (NextAuth.js or equivalent)
+- Build REST API routes: projects CRUD, modules CRUD
 - Build Dashboard page (project list + create/delete UI)
 - Write unit tests for project CRUD procedures
 
@@ -732,9 +761,9 @@ Tag format: // Feature: onboarding-project-builder, Property {N}: {property_text
 **Goal**: Working chat interface with AI-proposed changes and live preview.
 
 - Build Builder workspace layout (split-pane: ChatPanel + PreviewPanel)
-- Implement `/api/ai/chat` route with Vercel AI SDK `streamObject` and Zod `ProposedChange` schema
+- Implement `/api/ai/chat` route with Vercel AI SDK `generateObject` and Zod schema
 - Implement `ProposedChangeCard` (approve/reject UI)
-- Implement `session.applyChange` and `session.undo` tRPC procedures
+- Implement session management and undo logic
 - Implement Zustand store for revision history
 - Implement auto-save with retry logic (Requirement 7)
 - Write property tests P3 (approve round trip) and P4 (undo)
@@ -750,7 +779,7 @@ Tag format: // Feature: onboarding-project-builder, Property {N}: {property_text
 - Implement `VisualModule` with Mermaid.js rendering + hover/click annotations
 - Implement `CodeEditorModule` with Monaco Editor
 - Implement `/api/execute` proxy with 15-second timeout and error sanitization
-- Implement module add/reorder/delete tRPC procedures
+- Implement module add/reorder/delete API endpoints
 - Write property tests P5 (order), P6 (ID uniqueness), P7 (config round trip), P8 (error safety)
 
 **Milestone**: Designer can add all three module types; Joinees can run code.
@@ -760,7 +789,7 @@ Tag format: // Feature: onboarding-project-builder, Property {N}: {property_text
 ### Sprint 4 — Joinee Experience & Publishing (Week 7–8)
 **Goal**: Published projects are accessible and trackable by Joinees.
 
-- Implement `project.publish` tRPC procedure (slug generation)
+- Implement `project.publish` endpoint (slug generation)
 - Build Joinee public view (`/p/[slug]`) with no-auth access
 - Implement `ModuleList`, `ModuleViewer`, `ProgressBar` components
 - Implement localStorage progress persistence
