@@ -1,13 +1,7 @@
-import { createOpenAI } from "@ai-sdk/openai";
+import { xai } from "@ai-sdk/xai";
 import { streamText, type CoreMessage } from "ai";
 
 export const maxDuration = 30;
-
-// OpenRouter is OpenAI-compatible — just point at their base URL
-const openrouter = createOpenAI({
-  baseURL: "https://openrouter.ai/api/v1",
-  apiKey: process.env.OPENROUTER_API_KEY ?? "",
-});
 
 interface IntroContext {
   goals: string;
@@ -53,43 +47,23 @@ Keep responses concise and actionable. When proposing changes, explain what you'
   if (intro) {
     prompt += `\n\n--- ONBOARDING PROJECT CONTEXT ---`;
     prompt += `\nThe designer filled out an intake questionnaire. Use this to tailor all content you generate:\n`;
-
-    if (intro.goals) {
-      prompt += `\nLEARNING GOALS:\n${intro.goals}`;
-    }
-
-    if (intro.baselineSkills.length > 0) {
-      prompt += `\n\nBASELINE SKILLS (assumed prior knowledge):\n- ${intro.baselineSkills.join("\n- ")}`;
-    }
-
-    if (intro.customSkills) {
-      prompt += `\n\nADDITIONAL SKILL NOTES:\n${intro.customSkills}`;
-    }
-
-    if (intro.rules) {
-      prompt += `\n\nRULES & STYLE GUIDE:\n${intro.rules}`;
-    }
-
+    if (intro.goals) prompt += `\nLEARNING GOALS:\n${intro.goals}`;
+    if (intro.baselineSkills.length > 0) prompt += `\n\nBASELINE SKILLS:\n- ${intro.baselineSkills.join("\n- ")}`;
+    if (intro.customSkills) prompt += `\n\nADDITIONAL SKILL NOTES:\n${intro.customSkills}`;
+    if (intro.rules) prompt += `\n\nRULES & STYLE GUIDE:\n${intro.rules}`;
     if (intro.examples.length > 0) {
       prompt += `\n\nREFERENCE MATERIALS:`;
-      for (const ex of intro.examples) {
-        prompt += `\n- [${ex.type.toUpperCase()}] ${ex.label}: ${ex.value}`;
-      }
+      for (const ex of intro.examples) prompt += `\n- [${ex.type.toUpperCase()}] ${ex.label}: ${ex.value}`;
     }
-
     prompt += `\n--- END CONTEXT ---`;
   }
 
   if (project) {
     prompt += `\n\nCURRENT PROJECT: "${project.title}"`;
-    if (project.description) {
-      prompt += `\nDescription: ${project.description}`;
-    }
+    if (project.description) prompt += `\nDescription: ${project.description}`;
     if (project.modules.length > 0) {
       prompt += `\nExisting modules (${project.modules.length}):`;
-      for (const m of project.modules) {
-        prompt += `\n  ${m.position + 1}. [${m.type}] "${m.title}" (id: ${m.id})`;
-      }
+      for (const m of project.modules) prompt += `\n  ${m.position + 1}. [${m.type}] "${m.title}" (id: ${m.id})`;
     } else {
       prompt += `\nNo modules yet.`;
     }
@@ -112,32 +86,19 @@ export async function POST(req: Request) {
 
   const systemPrompt = buildSystemPrompt(introContext, projectContext);
 
-  // Use Grok via OpenRouter — swap the model string to use any model:
-  // "x-ai/grok-3-mini", "anthropic/claude-3.5-sonnet", "openai/gpt-4o", etc.
-  const model = process.env.OPENROUTER_MODEL ?? "x-ai/grok-3-mini";
-
   try {
     const result = await streamText({
-      model: openrouter(model),
+      model: xai("grok-4"),
       system: systemPrompt,
       messages,
     });
 
     return result.toTextStreamResponse();
   } catch (err: unknown) {
-    const message =
-      err instanceof Error ? err.message : "AI service unavailable";
-    const status =
-      err && typeof err === "object" && "statusCode" in err
-        ? (err as { statusCode: number }).statusCode
-        : 500;
-
+    const message = err instanceof Error ? err.message : "AI service unavailable";
     return new Response(
       JSON.stringify({ error: message }),
-      {
-        status,
-        headers: { "Content-Type": "application/json" },
-      }
+      { status: 500, headers: { "Content-Type": "application/json" } }
     );
   }
 }

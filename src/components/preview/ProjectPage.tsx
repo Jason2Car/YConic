@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import type { Project, Module, ModuleType } from "@/lib/mock/project";
 import { PreviewRichText } from "./PreviewRichText";
 import { PreviewVisual } from "./PreviewVisual";
@@ -10,31 +10,25 @@ interface ProjectPageProps {
     project: Project;
 }
 
-function ModuleTypeTag({ type }: { type: ModuleType }) {
-    const config = {
-        RICH_TEXT: { label: "📄 Reading", bg: "#ecfdf5", color: "#059669", border: "#a7f3d0" },
-        INTERACTIVE_VISUAL: { label: "📊 Interactive", bg: "#faf5ff", color: "#9333ea", border: "#d8b4fe" },
-        CODE_EDITOR: { label: "💻 Exercise", bg: "#eff6ff", color: "#2563eb", border: "#93c5fd" },
+function TypeBadge({ type }: { type: ModuleType }) {
+    const cfg = {
+        RICH_TEXT: { label: "📄 Reading", bg: "#1a3a2a", color: "#4ade80", border: "#166534" },
+        INTERACTIVE_VISUAL: { label: "📊 Interactive", bg: "#2d1b4e", color: "#c084fc", border: "#581c87" },
+        CODE_EDITOR: { label: "💻 Exercise", bg: "#172554", color: "#60a5fa", border: "#1e3a5f" },
     }[type];
-
     return (
         <span className="text-xs font-medium px-2.5 py-1 rounded-full"
-            style={{ backgroundColor: config.bg, color: config.color, border: `1px solid ${config.border}` }}>
-            {config.label}
+            style={{ backgroundColor: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}` }}>
+            {cfg.label}
         </span>
     );
 }
 
 function ModuleCard({ module, index, total, isComplete, onComplete, isActive }: {
-    module: Module;
-    index: number;
-    total: number;
-    isComplete: boolean;
-    onComplete: () => void;
-    isActive: boolean;
+    module: Module; index: number; total: number;
+    isComplete: boolean; onComplete: () => void; isActive: boolean;
 }) {
     const [expanded, setExpanded] = useState(true);
-    const cardRef = useRef<HTMLDivElement>(null);
 
     const renderContent = () => {
         switch (module.type) {
@@ -48,67 +42,40 @@ function ModuleCard({ module, index, total, isComplete, onComplete, isActive }: 
     };
 
     return (
-        <div
-            ref={cardRef}
-            id={`module-${module.id}`}
-            className="rounded-2xl overflow-hidden transition-all duration-300"
+        <div id={`module-${module.id}`} className="rounded-xl overflow-hidden transition-all duration-300"
             style={{
-                backgroundColor: "#ffffff",
-                border: isActive ? "2px solid #3b82f6" : "1px solid #e5e7eb",
-                boxShadow: isActive ? "0 4px 20px rgba(59,130,246,0.15)" : "0 1px 3px rgba(0,0,0,0.06)",
-            }}
-        >
-            {/* Header — clickable to expand/collapse */}
-            <button
-                onClick={() => setExpanded(!expanded)}
-                className="w-full flex items-center gap-3 px-6 py-4 text-left hover:bg-gray-50 transition-colors"
-            >
-                {/* Step number / check */}
-                <div className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all"
-                    style={{
-                        backgroundColor: isComplete ? "#059669" : "#f3f4f6",
-                        color: isComplete ? "#ffffff" : "#6b7280",
-                    }}>
+                backgroundColor: "#1e1e1e",
+                border: isActive ? "2px solid #007acc" : "1px solid #3e3e42",
+                boxShadow: isActive ? "0 0 20px rgba(0,122,204,0.15)" : "none",
+            }}>
+            <button onClick={() => setExpanded(!expanded)}
+                className="w-full flex items-center gap-3 px-5 py-4 text-left transition-colors"
+                style={{ backgroundColor: "#252526" }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#2a2d2e")}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#252526")}>
+                <div className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold"
+                    style={{ backgroundColor: isComplete ? "#166534" : "#3e3e42", color: isComplete ? "#4ade80" : "#858585" }}>
                     {isComplete ? "✓" : index + 1}
                 </div>
-
                 <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                        <ModuleTypeTag type={module.type} />
-                        <span className="text-xs text-gray-400">{index + 1} of {total}</span>
+                    <div className="flex items-center gap-2 mb-0.5">
+                        <TypeBadge type={module.type} />
+                        <span className="text-xs" style={{ color: "#555" }}>{index + 1} of {total}</span>
                     </div>
-                    <h3 className="text-lg font-semibold text-gray-900 truncate">{module.title}</h3>
+                    <h3 className="text-base font-semibold truncate" style={{ color: "#cccccc" }}>{module.title}</h3>
                 </div>
-
-                {/* Expand/collapse chevron */}
-                <span className="text-gray-400 transition-transform duration-200"
-                    style={{ transform: expanded ? "rotate(0deg)" : "rotate(-90deg)" }}>
-                    ▼
-                </span>
+                <span style={{ color: "#555", transform: expanded ? "rotate(0)" : "rotate(-90deg)", transition: "transform 0.2s" }}>▼</span>
             </button>
 
-            {/* Content */}
             {expanded && (
-                <div className="px-6 pb-6">
-                    <div className="border-t border-gray-100 pt-5">
-                        {renderContent()}
-                    </div>
-
-                    {/* Actions bar */}
-                    <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-100">
-                        <div className="flex items-center gap-2">
-                            {isComplete && (
-                                <span className="text-sm text-green-600 font-medium flex items-center gap-1">
-                                    ✓ Completed
-                                </span>
-                            )}
-                        </div>
+                <div className="px-5 pb-5">
+                    <div className="pt-4" style={{ borderTop: "1px solid #3e3e42" }}>{renderContent()}</div>
+                    <div className="flex items-center justify-between mt-5 pt-3" style={{ borderTop: "1px solid #3e3e42" }}>
+                        <div>{isComplete && <span className="text-sm font-medium" style={{ color: "#4ade80" }}>✓ Completed</span>}</div>
                         {!isComplete && (
-                            <button
-                                onClick={(e) => { e.stopPropagation(); onComplete(); }}
-                                className="px-5 py-2.5 rounded-lg text-sm font-medium text-white transition-all hover:shadow-md active:scale-95"
-                                style={{ backgroundColor: "#3b82f6" }}
-                            >
+                            <button onClick={(e) => { e.stopPropagation(); onComplete(); }}
+                                className="px-4 py-2 rounded-lg text-sm font-medium transition-all active:scale-95"
+                                style={{ backgroundColor: "#007acc", color: "#fff" }}>
                                 Mark as Complete →
                             </button>
                         )}
@@ -127,102 +94,69 @@ export function ProjectPage({ project }: ProjectPageProps) {
     const progress = modules.length > 0 ? Math.round((completedIds.size / modules.length) * 100) : 0;
     const allComplete = modules.length > 0 && completedIds.size === modules.length;
 
-    // Track which module is in view
     useEffect(() => {
         const observer = new IntersectionObserver(
-            (entries) => {
-                for (const entry of entries) {
-                    if (entry.isIntersecting) {
-                        const id = entry.target.id.replace("module-", "");
-                        setActiveModuleId(id);
-                    }
-                }
-            },
+            (entries) => { for (const e of entries) if (e.isIntersecting) setActiveModuleId(e.target.id.replace("module-", "")); },
             { threshold: 0.3, rootMargin: "-80px 0px -40% 0px" }
         );
-
-        modules.forEach((m) => {
-            const el = document.getElementById(`module-${m.id}`);
-            if (el) observer.observe(el);
-        });
-
+        modules.forEach((m) => { const el = document.getElementById(`module-${m.id}`); if (el) observer.observe(el); });
         return () => observer.disconnect();
     }, [modules]);
 
     const handleComplete = (id: string) => {
-        setCompletedIds((prev) => {
-            const next = new Set(prev);
-            next.add(id);
-            return next;
-        });
-
-        // Auto-scroll to next incomplete module
-        const currentIndex = modules.findIndex((m) => m.id === id);
-        const nextModule = modules.slice(currentIndex + 1).find((m) => !completedIds.has(m.id));
-        if (nextModule) {
-            setTimeout(() => {
-                document.getElementById(`module-${nextModule.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
-            }, 300);
-        }
-    };
-
-    const scrollToModule = (id: string) => {
-        document.getElementById(`module-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+        setCompletedIds((prev) => new Set([...prev, id]));
+        const idx = modules.findIndex((m) => m.id === id);
+        const next = modules.slice(idx + 1).find((m) => !completedIds.has(m.id));
+        if (next) setTimeout(() => document.getElementById(`module-${next.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 300);
     };
 
     return (
-        <div className="min-h-screen" style={{ backgroundColor: "#f8fafc" }}>
-            {/* Sticky header */}
-            <header className="sticky top-0 z-50 backdrop-blur-md bg-white/90" style={{ borderBottom: "1px solid #e5e7eb" }}>
+        <div className="min-h-screen" style={{ backgroundColor: "#181818" }}>
+            {/* Header */}
+            <header className="sticky top-0 z-50" style={{ backgroundColor: "#1e1e1eee", borderBottom: "1px solid #3e3e42", backdropFilter: "blur(8px)" }}>
                 <div className="max-w-5xl mx-auto px-6 py-3 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <a href={`/builder/${project.id}/edit`}
-                            className="text-sm text-gray-500 hover:text-blue-600 transition-colors flex items-center gap-1">
+                        <a href={`/builder/${project.id}/edit`} className="text-sm transition-colors" style={{ color: "#858585" }}
+                            onMouseEnter={(e) => (e.currentTarget.style.color = "#007acc")}
+                            onMouseLeave={(e) => (e.currentTarget.style.color = "#858585")}>
                             ← Editor
                         </a>
-                        <span className="w-px h-4 bg-gray-200" />
-                        <h1 className="text-sm font-semibold text-gray-800 truncate max-w-[300px]">{project.title}</h1>
+                        <span className="w-px h-4" style={{ backgroundColor: "#3e3e42" }} />
+                        <span className="text-sm font-medium truncate max-w-[300px]" style={{ color: "#cccccc" }}>{project.title}</span>
                     </div>
-
-                    {/* Progress */}
                     <div className="flex items-center gap-3">
-                        <span className="text-xs text-gray-500">{completedIds.size}/{modules.length}</span>
-                        <div className="w-40 h-2.5 rounded-full overflow-hidden" style={{ backgroundColor: "#e5e7eb" }}>
-                            <div className="h-full rounded-full transition-all duration-700 ease-out"
-                                style={{ width: `${progress}%`, backgroundColor: allComplete ? "#059669" : "#3b82f6" }} />
+                        <span className="text-xs" style={{ color: "#858585" }}>{completedIds.size}/{modules.length}</span>
+                        <div className="w-36 h-2 rounded-full overflow-hidden" style={{ backgroundColor: "#3e3e42" }}>
+                            <div className="h-full rounded-full transition-all duration-700"
+                                style={{ width: `${progress}%`, backgroundColor: allComplete ? "#4ade80" : "#007acc" }} />
                         </div>
-                        <span className="text-xs font-bold" style={{ color: allComplete ? "#059669" : "#3b82f6" }}>
-                            {progress}%
-                        </span>
+                        <span className="text-xs font-bold" style={{ color: allComplete ? "#4ade80" : "#007acc" }}>{progress}%</span>
                     </div>
                 </div>
             </header>
 
             <div className="max-w-6xl mx-auto flex gap-8 px-6 py-8">
-                {/* Sidebar TOC */}
-                <nav className="hidden lg:block w-60 shrink-0">
+                {/* Sidebar */}
+                <nav className="hidden lg:block w-56 shrink-0">
                     <div className="sticky top-20">
-                        <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Contents</h3>
+                        <h3 className="text-xs font-bold uppercase tracking-wider mb-4" style={{ color: "#555" }}>Contents</h3>
                         <ul className="space-y-0.5">
                             {modules.map((m, i) => {
                                 const done = completedIds.has(m.id);
                                 const active = activeModuleId === m.id;
                                 return (
                                     <li key={m.id}>
-                                        <button
-                                            onClick={() => scrollToModule(m.id)}
-                                            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all text-left"
+                                        <button onClick={() => document.getElementById(`module-${m.id}`)?.scrollIntoView({ behavior: "smooth" })}
+                                            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-left transition-all"
                                             style={{
-                                                backgroundColor: active ? "#eff6ff" : "transparent",
-                                                color: done ? "#059669" : active ? "#2563eb" : "#6b7280",
+                                                backgroundColor: active ? "#007acc22" : "transparent",
+                                                color: done ? "#4ade80" : active ? "#007acc" : "#858585",
                                                 fontWeight: active ? 600 : 400,
-                                            }}
-                                        >
-                                            <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs shrink-0"
+                                            }}>
+                                            <span className="w-5 h-5 rounded-full flex items-center justify-center text-xs shrink-0"
                                                 style={{
-                                                    backgroundColor: done ? "#dcfce7" : active ? "#dbeafe" : "#f3f4f6",
-                                                    color: done ? "#059669" : active ? "#2563eb" : "#9ca3af",
-                                                    fontWeight: 600,
+                                                    backgroundColor: done ? "#16653433" : active ? "#007acc33" : "#3e3e42",
+                                                    color: done ? "#4ade80" : active ? "#007acc" : "#858585",
                                                 }}>
                                                 {done ? "✓" : i + 1}
                                             </span>
@@ -235,50 +169,41 @@ export function ProjectPage({ project }: ProjectPageProps) {
                     </div>
                 </nav>
 
-                {/* Main content */}
-                <main className="flex-1 min-w-0 space-y-6">
-                    {/* Hero card */}
-                    <div className="rounded-2xl p-8 bg-gradient-to-br from-blue-600 to-indigo-700 text-white shadow-lg">
-                        <h1 className="text-3xl font-bold mb-2">{project.title}</h1>
-                        {project.description && <p className="text-blue-100 text-lg mb-4">{project.description}</p>}
-                        <div className="flex items-center gap-4 text-sm text-blue-200">
+                {/* Main */}
+                <main className="flex-1 min-w-0 space-y-5">
+                    {/* Hero */}
+                    <div className="rounded-xl p-6" style={{ background: "linear-gradient(135deg, #1a365d, #2d1b69)", border: "1px solid #3e3e42" }}>
+                        <h1 className="text-2xl font-bold mb-1" style={{ color: "#e2e8f0" }}>{project.title}</h1>
+                        {project.description && <p className="text-sm mb-3" style={{ color: "#94a3b8" }}>{project.description}</p>}
+                        <div className="flex gap-3 text-xs" style={{ color: "#64748b" }}>
                             <span>{modules.length} modules</span>
                             <span>·</span>
-                            <span>{modules.filter((m) => m.type === "RICH_TEXT").length} readings</span>
+                            <span>{modules.filter(m => m.type === "RICH_TEXT").length} readings</span>
                             <span>·</span>
-                            <span>{modules.filter((m) => m.type === "INTERACTIVE_VISUAL").length} visuals</span>
+                            <span>{modules.filter(m => m.type === "INTERACTIVE_VISUAL").length} visuals</span>
                             <span>·</span>
-                            <span>{modules.filter((m) => m.type === "CODE_EDITOR").length} exercises</span>
+                            <span>{modules.filter(m => m.type === "CODE_EDITOR").length} exercises</span>
                         </div>
                     </div>
 
-                    {/* Module cards */}
-                    {modules.map((module, i) => (
-                        <ModuleCard
-                            key={module.id}
-                            module={module}
-                            index={i}
-                            total={modules.length}
-                            isComplete={completedIds.has(module.id)}
-                            onComplete={() => handleComplete(module.id)}
-                            isActive={activeModuleId === module.id}
-                        />
+                    {modules.map((m, i) => (
+                        <ModuleCard key={m.id} module={m} index={i} total={modules.length}
+                            isComplete={completedIds.has(m.id)} onComplete={() => handleComplete(m.id)}
+                            isActive={activeModuleId === m.id} />
                     ))}
 
-                    {/* Completion celebration */}
                     {allComplete && (
-                        <div className="rounded-2xl p-10 text-center bg-gradient-to-br from-green-50 to-emerald-50"
-                            style={{ border: "2px solid #a7f3d0" }}>
-                            <div className="text-5xl mb-4">🎉</div>
-                            <h2 className="text-2xl font-bold text-green-800 mb-2">Onboarding Complete!</h2>
-                            <p className="text-green-600 text-lg">You've finished all {modules.length} modules. Welcome to the team!</p>
+                        <div className="rounded-xl p-8 text-center" style={{ backgroundColor: "#16653422", border: "2px solid #166534" }}>
+                            <div className="text-4xl mb-3">🎉</div>
+                            <h2 className="text-xl font-bold mb-1" style={{ color: "#4ade80" }}>Onboarding Complete!</h2>
+                            <p style={{ color: "#22c55e" }}>All {modules.length} modules finished. Welcome to the team!</p>
                         </div>
                     )}
 
                     {modules.length === 0 && (
-                        <div className="rounded-2xl p-12 text-center bg-white shadow-sm" style={{ border: "1px solid #e5e7eb" }}>
-                            <div className="text-4xl mb-3 opacity-30">📋</div>
-                            <p className="text-gray-400 text-lg">No modules yet. Head back to the editor to add some.</p>
+                        <div className="rounded-xl p-10 text-center" style={{ backgroundColor: "#1e1e1e", border: "1px solid #3e3e42" }}>
+                            <div className="text-4xl mb-3 opacity-20">📋</div>
+                            <p style={{ color: "#858585" }}>No modules yet. Head back to the editor to add some.</p>
                         </div>
                     )}
                 </main>
