@@ -79,33 +79,24 @@ Generate all modules now as separate JSON blocks.`;
       let modules: Module[] = [];
 
       if (response.ok) {
-        const text = await response.text();
-        // Try to extract JSON blocks from the AI response
-        const jsonBlocks = text.match(/```json\s*([\s\S]*?)```/g);
-        if (jsonBlocks) {
-          let position = 0;
-          for (const block of jsonBlocks) {
-            try {
-              const json = block.replace(/```json\s*/, "").replace(/```/, "").trim();
-              const parsed = JSON.parse(json);
-              if (parsed.type === "add_module" && parsed.payload) {
-                const mod: Module = {
-                  id: `mod_${Date.now()}_${position}`,
-                  projectId,
-                  type: parsed.payload.type || "RICH_TEXT",
-                  title: parsed.payload.title || `Module ${position + 1}`,
-                  position,
-                  content: parsed.payload.content || { type: "RICH_TEXT", html: "<p>Content pending</p>" },
-                  createdAt: new Date().toISOString(),
-                  updatedAt: new Date().toISOString(),
-                };
-                modules.push(mod);
-                position++;
-              }
-            } catch {
-              // Skip unparseable blocks
-            }
+        try {
+          const data = await response.json();
+          const change = data.object as { type: string; payload: Partial<Module> } | null;
+          if (change?.type === "add_module" && change.payload) {
+            const { payload } = change;
+            modules = [{
+              id: `mod_${Date.now()}_0`,
+              projectId,
+              type: payload.type ?? "RICH_TEXT",
+              title: payload.title ?? "Module 1",
+              position: 0,
+              content: payload.content ?? { type: "RICH_TEXT", html: "<p>Content pending</p>" },
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            }];
           }
+        } catch {
+          // Fall through to default modules below
         }
       }
 

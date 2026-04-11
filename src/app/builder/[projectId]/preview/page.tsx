@@ -6,6 +6,7 @@ import { useBuilderStore } from "@/lib/store";
 import { MOCK_PROJECT } from "@/lib/mockData";
 import { VisualModule } from "@/components/modules/VisualModule";
 import { CodeEditorModule } from "@/components/modules/CodeEditorModule";
+import { sanitizeHtml } from "@/lib/sanitize";
 import type { Module, ModuleType, RichTextContent, InteractiveVisualContent, CodeEditorContent } from "@/lib/types";
 
 function TypeBadge({ type }: { type: ModuleType }) {
@@ -40,7 +41,7 @@ function ModuleCard({ module, index, total, isComplete, onComplete, isActive }: 
                             prose-h1:text-xl prose-h2:text-lg prose-h3:text-base
                             prose-blockquote:border-gray-600 prose-blockquote:text-gray-400
                             prose-hr:border-gray-700"
-                        dangerouslySetInnerHTML={{ __html: html }}
+                        dangerouslySetInnerHTML={{ __html: sanitizeHtml(html) }}
                     />
                 );
             }

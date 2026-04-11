@@ -27,12 +27,23 @@ interface BuilderState {
   setAiThinking: (v: boolean) => void;
   setIntroData: (data: IntroFormData) => void;
   advanceToEdit: () => void;
+  loadFromDb: (projectId: string) => Promise<boolean>;
+  saveToDb: () => Promise<void>;
   autoSave: () => Promise<void>;
+}
+
+function buildSaveBody(project: Project) {
+  return {
+    title: project.title,
+    description: project.description,
+    stage: project.stage.toUpperCase(),
+    modules: project.modules,
+  };
 }
 
 /**
  * Zustand store for the builder workspace. Manages the current project,
- * chat messages, revision history, and auto-save state. The `applyChange`
+ * chat messages, revision history, and save state. The `applyChange`
  * action applies a ProposedChange to the project and triggers `autoSave`
  * to persist the update to the server with exponential backoff retry.
  */
@@ -163,7 +174,47 @@ export const useBuilderStore = create<BuilderState>((set, get) => ({
   },
 
   /**
-   * Persists the current project state to the server via PUT /api/projects/[id].
+   * Loads a project from the database and populates the store.
+   * Returns true if found, false if not found or on error.
+   */
+  loadFromDb: async (projectId: string): Promise<boolean> => {
+    try {
+      const res = await fetch(`/api/projects/${projectId}`);
+      if (!res.ok) return false;
+      const data = await res.json();
+      // DB stores stage as uppercase enum (INIT/INTRO/EDIT); store uses lowercase
+      const stage = (data.stage as string).toLowerCase() as Project["stage"];
+      set({ project: { ...data, stage } });
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  /**
+   * Persists the current project and all modules to the server via POST /api/projects/[id]/save.
+   * Sets isSaving/saveError flags so the UI can display save status.
+   */
+  saveToDb: async () => {
+    const { project } = get();
+    if (!project) return;
+    set({ isSaving: true, saveError: false });
+    try {
+      const res = await fetch(`/api/projects/${project.id}/save`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildSaveBody(project)),
+      });
+      if (!res.ok) throw new Error(`Save failed: ${res.status}`);
+      set({ isSaving: false, saveError: false });
+    } catch (err) {
+      console.error("Save failed:", err);
+      set({ isSaving: false, saveError: true });
+    }
+  },
+
+  /**
+   * Persists the current project state to the server via POST /api/projects/[id]/save.
    * On failure, retries with exponential backoff (1s, 2s, 4s) up to 3 times.
    * Sets isSaving/saveError flags so the UI can display save status.
    */
@@ -178,13 +229,10 @@ export const useBuilderStore = create<BuilderState>((set, get) => ({
 
     for (let attempt = 0; attempt <= delays.length; attempt++) {
       try {
-        const res = await fetch(`/api/projects/${project.id}`, {
-          method: "PUT",
+        const res = await fetch(`/api/projects/${project.id}/save`, {
+          method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title: project.title,
-            description: project.description,
-          }),
+          body: JSON.stringify(buildSaveBody(project)),
         });
         if (!res.ok) throw new Error(`Save failed: ${res.status}`);
         set({ isSaving: false, saveError: false });

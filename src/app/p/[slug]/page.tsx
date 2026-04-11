@@ -2,6 +2,7 @@ import { prisma } from "@/server/db/prisma";
 import { notFound } from "next/navigation";
 import { JoineeView } from "./JoineeView";
 import type { Metadata } from "next";
+import type { Project } from "@/lib/types";
 
 interface PageProps {
     params: { slug: string };
@@ -29,16 +30,17 @@ export default async function PublicProjectPage({ params }: PageProps) {
     }
 
     // Serialize dates for client component
-    const serialized = {
+    const serialized: Project = {
         ...project,
+        stage: (project.stage as string).toLowerCase() as Project["stage"],
         createdAt: project.createdAt.toISOString(),
         updatedAt: project.updatedAt.toISOString(),
-        modules: project.modules.map((m: any) => ({
+        modules: project.modules.map((m) => ({
             ...m,
             createdAt: m.createdAt.toISOString(),
             updatedAt: m.updatedAt.toISOString(),
         })),
     };
 
-    return <JoineeView project={serialized as any} />;
+    return <JoineeView project={serialized} />;
 }

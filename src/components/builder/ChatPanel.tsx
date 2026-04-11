@@ -197,7 +197,7 @@ export function ChatPanel() {
     } finally {
       setAiThinking(false);
     }
-  }, [input, isAiThinking, messages, introData, project, addMessage, updateMessage, setAiThinking, setInput]);
+  }, [input, isAiThinking, messages, introData, project, addMessage, setAiThinking]);
 
   const handleApprove = (msg: ChatMessage) => {
     if (!msg.proposedChange) return;

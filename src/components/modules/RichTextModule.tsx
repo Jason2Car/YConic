@@ -43,9 +43,9 @@ function htmlToMarkdown(html: string): string {
     md = md.replace(/<ul[^>]*>([\s\S]*?)<\/ul>/gi, (_, inner) => {
         return inner.replace(/<li[^>]*>(.*?)<\/li>/gi, "- $1\n") + "\n";
     });
-    md = md.replace(/<ol[^>]*>([\s\S]*?)<\/ol>/gi, (_, inner) => {
+    md = md.replace(/<ol[^>]*>([\s\S]*?)<\/ol>/gi, (_, inner: string) => {
         let i = 0;
-        return inner.replace(/<li[^>]*>(.*?)<\/li>/gi, () => { i++; return `${i}. ${arguments[1] || ""}\n`; }) + "\n";
+        return inner.replace(/<li[^>]*>(.*?)<\/li>/gi, (_match: string, content: string) => { i++; return `${i}. ${content}\n`; }) + "\n";
     });
     // Paragraphs and breaks
     md = md.replace(/<br\s*\/?>/gi, "\n");
