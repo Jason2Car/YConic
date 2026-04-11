@@ -28,6 +28,10 @@ interface BuilderState {
   setIntroData: (data: IntroFormData) => void;
   advanceToEdit: () => void;
   autoSave: () => Promise<void>;
+  /** Loads a project from the DB via GET /api/projects/[id]. Returns true if found. */
+  loadFromDb: (projectId: string) => Promise<boolean>;
+  /** Saves the current project to the DB via PUT /api/projects/[id]. */
+  saveToDb: () => Promise<void>;
 }
 
 /**
@@ -199,5 +203,52 @@ export const useBuilderStore = create<BuilderState>((set, get) => ({
 
     console.error("Auto-save failed after retries:", lastError);
     set({ isSaving: false, saveError: true });
+  },
+
+  loadFromDb: async (projectId: string) => {
+    try {
+      const res = await fetch(`/api/projects/${projectId}`);
+      if (!res.ok) return false;
+      const data = await res.json();
+      // Normalize DB response to match our Project type
+      const project = {
+        ...data,
+        stage: (data.stage || "edit").toLowerCase(),
+        createdAt: data.createdAt ?? new Date().toISOString(),
+        updatedAt: data.updatedAt ?? new Date().toISOString(),
+        modules: (data.modules || []).map((m: Record<string, unknown>) => ({
+          ...m,
+          createdAt: m.createdAt ?? new Date().toISOString(),
+          updatedAt: m.updatedAt ?? new Date().toISOString(),
+          content: m.content ?? { type: "RICH_TEXT", html: "" },
+        })),
+      };
+      set({ project });
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  saveToDb: async () => {
+    const { project } = get();
+    if (!project) return;
+
+    set({ isSaving: true, saveError: false });
+    try {
+      const res = await fetch(`/api/projects/${project.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: project.title,
+          description: project.description,
+        }),
+      });
+      if (!res.ok) throw new Error(`Save failed: ${res.status}`);
+      set({ isSaving: false, saveError: false });
+    } catch (err) {
+      console.error("Save failed:", err);
+      set({ isSaving: false, saveError: true });
+    }
   },
 }));

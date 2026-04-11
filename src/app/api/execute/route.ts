@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { sanitizeStderr } from "@/lib/sanitizeStderr";
 
 const ExecuteSchema = z.object({
     language: z.enum(["python", "javascript", "typescript"]),
@@ -14,15 +15,6 @@ const LANGUAGE_MAP: Record<string, { language: string; version: string }> = {
     javascript: { language: "javascript", version: "18.15.0" },
     typescript: { language: "typescript", version: "5.0.3" },
 };
-
-/** Strip internal Piston container paths from stderr to avoid leaking system details */
-function sanitizeStderr(stderr: string): string {
-    return stderr
-        .split("\n")
-        .filter((line) => !line.match(/\/piston\/jobs\//))
-        .filter((line) => !line.match(/^\/tmp\//))
-        .join("\n");
-}
 
 /** POST /api/execute — sandboxed code execution via Piston API */
 export async function POST(req: Request) {
