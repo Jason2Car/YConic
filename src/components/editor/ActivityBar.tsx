@@ -53,6 +53,7 @@ export function ActivityBar() {
                         key={item.id}
                         onClick={() => setSidebarView(item.id)}
                         title={item.label}
+                        aria-label={item.label}
                         className="relative flex items-center justify-center w-12 h-12 transition-colors"
                         style={{
                             color: isActive ? "#cccccc" : "#858585",

@@ -1,4 +1,4 @@
-import type { Module } from "@/lib/mock/project";
+import type { Module } from "@/lib/types";
 
 export function buildSystemPrompt(modules: Module[]): string {
   const moduleList = modules

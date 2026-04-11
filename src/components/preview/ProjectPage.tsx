@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import type { Project, Module, ModuleType } from "@/lib/mock/project";
+import type { Project, Module, ModuleType } from "@/lib/types";
 import { PreviewRichText } from "./PreviewRichText";
 import { PreviewVisual } from "./PreviewVisual";
 import { PreviewCode } from "./PreviewCode";

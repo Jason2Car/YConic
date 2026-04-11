@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react";
 import dynamic from "next/dynamic";
-import type { CodeEditorContent } from "@/lib/mock/project";
+import type { CodeEditorContent } from "@/lib/types";
 
 // Lazy load Monaco to avoid SSR issues
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
@@ -69,22 +69,32 @@ export function CodeEditorModule({
         setShowHint(false);
         setShowSolution(false);
 
-        // Mock execution for now (no real Piston API)
-        await new Promise((resolve) => setTimeout(resolve, 800));
-
-        // Simulate output based on code content
-        if (code.includes("console.log") || code.includes("print(")) {
-            setOutput("✅ Code executed successfully\n\n🔍 Checking your development environment...\n✅ Node.js version: v20.11.0\n✅ npm version: 10.2.4\n✅ Git version: git version 2.43.0\n\n✨ Environment check complete!");
-            setOutputType("success");
-        } else if (code.includes("throw") || code.includes("raise")) {
-            setOutput("❌ RuntimeError: An error occurred\n  at line 5\n  at runChecks (script.ts:12:5)");
+        try {
+            const res = await fetch("/api/execute", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ language, code }),
+            });
+            const result = await res.json();
+            if (result.error) {
+                setOutput(result.error);
+                setOutputType("error");
+            } else if (result.timedOut) {
+                setOutput(result.stderr || "Execution timed out after 15 seconds.");
+                setOutputType("timeout");
+            } else if (result.exitCode !== 0) {
+                setOutput(result.stderr || "Program exited with a non-zero exit code.");
+                setOutputType("error");
+            } else {
+                setOutput(result.stdout || "(No output produced)");
+                setOutputType("success");
+            }
+        } catch {
+            setOutput("Code execution is temporarily unavailable.");
             setOutputType("error");
-        } else {
-            setOutput("Program exited with code 0\n(No output produced)");
-            setOutputType("success");
+        } finally {
+            setIsRunning(false);
         }
-
-        setIsRunning(false);
     };
 
     const handleRevealSolution = () => {

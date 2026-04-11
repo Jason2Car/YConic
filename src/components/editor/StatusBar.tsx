@@ -1,7 +1,7 @@
 "use client";
 
 import { useEditorStore } from "@/lib/store/editorStore";
-import type { Module } from "@/lib/mock/project";
+import type { Module } from "@/lib/types";
 
 interface StatusBarProps {
     modules: Module[];

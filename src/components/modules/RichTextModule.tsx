@@ -3,7 +3,7 @@
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
-import type { RichTextContent } from "@/lib/mock/project";
+import type { RichTextContent } from "@/lib/types";
 
 interface RichTextModuleProps {
     content: RichTextContent;

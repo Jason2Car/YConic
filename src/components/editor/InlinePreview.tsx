@@ -4,7 +4,7 @@ import { useProjectStore } from "@/lib/store/projectStore";
 import { PreviewRichText } from "@/components/preview/PreviewRichText";
 import { PreviewVisual } from "@/components/preview/PreviewVisual";
 import { PreviewCode } from "@/components/preview/PreviewCode";
-import type { Module, ModuleType } from "@/lib/mock/project";
+import type { Module, ModuleType } from "@/lib/types";
 
 function TypeBadge({ type }: { type: ModuleType }) {
     const cfg = {
@@ -60,6 +60,7 @@ function ModuleBlock({ module, index, total }: { module: Module; index: number; 
 
 export function InlinePreview() {
     const project = useProjectStore((s) => s.project);
+    if (!project) return null;
     const modules = [...project.modules].sort((a, b) => a.position - b.position);
 
     return (

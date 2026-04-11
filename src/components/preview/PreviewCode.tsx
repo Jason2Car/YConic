@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import dynamic from "next/dynamic";
-import type { CodeEditorContent } from "@/lib/mock/project";
+import type { CodeEditorContent } from "@/lib/types";
 
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
     ssr: false,
@@ -29,14 +29,27 @@ export function PreviewCode({ content }: PreviewCodeProps) {
     const handleRun = async () => {
         setIsRunning(true);
         setOutput(null);
-        await new Promise((r) => setTimeout(r, 800));
-        // Mock execution
-        if (code.includes("print(") || code.includes("console.log")) {
-            setOutput("✅ Code executed successfully.\n\n(Output would appear here with a real execution engine)");
-        } else {
-            setOutput("Program exited with code 0\n(No output produced — try adding a print/console.log statement)");
+        try {
+            const res = await fetch("/api/execute", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ language: content.language, code }),
+            });
+            const result = await res.json();
+            if (result.error) {
+                setOutput(result.error);
+            } else if (result.timedOut) {
+                setOutput(result.stderr || "Execution timed out after 15 seconds.");
+            } else if (result.exitCode !== 0) {
+                setOutput(result.stderr || "Program exited with a non-zero exit code.");
+            } else {
+                setOutput(result.stdout || "(No output produced)");
+            }
+        } catch {
+            setOutput("Code execution is temporarily unavailable.");
+        } finally {
+            setIsRunning(false);
         }
-        setIsRunning(false);
     };
 
     return (

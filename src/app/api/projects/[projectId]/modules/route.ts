@@ -1,14 +1,28 @@
 import { prisma } from "@/server/db/prisma";
 import { NextResponse } from "next/server";
+import { z } from "zod";
 
-// POST /api/projects/:id/modules — add a module
+const CreateModuleSchema = z.object({
+    type: z.enum(["RICH_TEXT", "INTERACTIVE_VISUAL", "CODE_EDITOR"]),
+    title: z.string().max(200).default("Untitled Module"),
+    content: z.record(z.unknown()).default({}),
+    position: z.number().int().min(0).optional(),
+});
+
+/** POST /api/projects/:id/modules — add a module */
 export async function POST(req: Request, { params }: { params: { projectId: string } }) {
     try {
-        const { type, title, content, position } = await req.json();
+        const body = await req.json();
+        const parsed = CreateModuleSchema.safeParse(body);
+        if (!parsed.success) {
+            return NextResponse.json(
+                { error: "Invalid input", details: parsed.error.flatten().fieldErrors },
+                { status: 400 }
+            );
+        }
 
-        // If no position given, append at end
-        let pos = position;
-        if (pos === undefined || pos === null) {
+        let pos = parsed.data.position;
+        if (pos === undefined) {
             const last = await prisma.module.findFirst({
                 where: { projectId: params.projectId },
                 orderBy: { position: "desc" },
@@ -19,10 +33,10 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         const mod = await prisma.module.create({
             data: {
                 projectId: params.projectId,
-                type,
-                title: title || "Untitled Module",
+                type: parsed.data.type,
+                title: parsed.data.title,
                 position: pos,
-                content: content || {},
+                content: parsed.data.content,
             },
         });
         return NextResponse.json(mod, { status: 201 });

@@ -7,13 +7,11 @@ interface EditPageProps {
 }
 
 export default function EditPage({ params }: EditPageProps) {
-    // Project state is managed by the projectStore (Zustand)
-    // In production, we'd hydrate the store from the database here
-    return <EditWorkspace />;
+    return <EditWorkspace projectId={params.projectId} />;
 }
 
-export function generateMetadata({ params }: EditPageProps) {
+export function generateMetadata() {
     return {
-        title: `Edit Project — Onboarding Builder`,
+        title: "Edit Project — Onboarding Builder",
     };
 }

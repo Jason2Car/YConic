@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { TitleBar } from "./TitleBar";
 import { ActivityBar } from "./ActivityBar";
@@ -11,9 +12,30 @@ import { StatusBar } from "./StatusBar";
 import { useEditorStore } from "@/lib/store/editorStore";
 import { useProjectStore } from "@/lib/store/projectStore";
 
-export function EditWorkspace() {
+interface EditWorkspaceProps {
+    projectId: string;
+}
+
+export function EditWorkspace({ projectId }: EditWorkspaceProps) {
     const { sidebarOpen, sidebarView, previewMode } = useEditorStore();
     const project = useProjectStore((s) => s.project);
+    const loading = useProjectStore((s) => s.loading);
+    const error = useProjectStore((s) => s.error);
+    const loadProject = useProjectStore((s) => s.loadProject);
+
+    useEffect(() => {
+        loadProject(projectId);
+    }, [projectId, loadProject]);
+
+    if (loading || !project) {
+        return (
+            <div className="flex items-center justify-center h-screen" style={{ backgroundColor: "#1e1e1e" }}>
+                <p className="text-sm" style={{ color: "#858585" }}>
+                    {error || "Loading project..."}
+                </p>
+            </div>
+        );
+    }
 
     return (
         <div className="flex flex-col h-screen overflow-hidden" style={{ backgroundColor: "#1e1e1e" }}>

@@ -1,6 +1,6 @@
 "use client";
 
-import type { RichTextContent } from "@/lib/mock/project";
+import type { RichTextContent } from "@/lib/types";
 
 interface PreviewRichTextProps {
     content: RichTextContent;
