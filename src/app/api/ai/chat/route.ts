@@ -53,6 +53,7 @@ type ProjectContext = z.infer<typeof ProjectContextSchema>;
 
 /**
  * Builds the system prompt for the AI assistant.
+ */
 function buildSystemPrompt(
   intro: IntroContext | null,
   project: ProjectContext | null
