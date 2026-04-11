@@ -78,6 +78,7 @@ export default function DashboardPage() {
           <button onClick={() => setShowCreate(true)} className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-100 transition-colors">
             New Project
           </button>
+          <a href="/recruiter/dashboard" className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-400 hover:text-white transition-colors">Recruiter View</a>
           <button onClick={() => signOut()} className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-400 hover:text-white transition-colors">
             Sign Out
           </button>
