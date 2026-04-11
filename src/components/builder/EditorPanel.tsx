@@ -42,10 +42,11 @@ export function EditorPanel() {
             </span>
           </div>
 
-          {/* Module editor */}
+          {/* Module editor — key forces remount when switching modules */}
           <div className="flex-1 min-h-0 overflow-hidden">
             {activeModule.type === "RICH_TEXT" && (
               <RichTextModule
+                key={activeModule.id}
                 moduleId={activeModule.id}
                 content={
                   (activeModule.content as RichTextContent) ?? {
@@ -57,6 +58,7 @@ export function EditorPanel() {
             )}
             {activeModule.type === "INTERACTIVE_VISUAL" && (
               <VisualModule
+                key={activeModule.id}
                 content={
                   (activeModule.content as InteractiveVisualContent) ?? {
                     type: "INTERACTIVE_VISUAL",
@@ -69,6 +71,7 @@ export function EditorPanel() {
             )}
             {activeModule.type === "CODE_EDITOR" && (
               <CodeEditorModule
+                key={activeModule.id}
                 content={
                   (activeModule.content as CodeEditorContent) ?? {
                     type: "CODE_EDITOR",
