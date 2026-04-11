@@ -15,10 +15,53 @@ The Onboarding Project Builder is a web application that enables student organiz
 - **Code_Editor**: An embedded code editing and execution environment within a Module.
 - **Session**: An active co-development session between a Designer and the AI_Assistant.
 - **Builder**: The application system responsible for managing Sessions, Onboarding_Projects, and their content.
+- **Init Stage**: The first stage of project creation — scaffolds the project record, React page, and database entry.
+- **Intro Stage**: The second stage — a structured questionnaire that collects goals, baseline requirements, and examples, which are fed into the AI to generate an initial customized module layout.
+- **Edit Stage**: The third and ongoing stage — the iterative workspace where the Designer adds, edits, and arranges text elements, visualizations, and code pads to produce the final learning module page.
+
+---
+
+## Three-Stage Designer Workflow
+
+Every Onboarding_Project a Designer creates passes through three sequential stages before it becomes a publishable learning module.
+
+```
+┌──────────┐     ┌──────────┐     ┌──────────┐
+│  INIT    │────▶│  INTRO   │────▶│  EDIT    │
+│          │     │          │     │          │
+│ Scaffold │     │ Question-│     │ Iterative│
+│ project  │     │ naire +  │     │ module   │
+│ + DB row │     │ AI seed  │     │ editing  │
+└──────────┘     └──────────┘     └──────────┘
+```
+
+**Init** — The Designer names the project and triggers creation. The system scaffolds a React page, writes the project record to the database, and redirects to the Intro stage.
+
+**Intro** — A guided questionnaire collects three inputs: (1) the organization's onboarding goals, (2) baseline requirements (what every joinee must know), and (3) example content or reference material. These answers are passed to the AI with a set of predefined rules to generate a first-draft module layout tailored to the organization.
+
+**Edit** — The Designer enters the iterative workspace. They can add, reorder, and refine text elements, interactive visualizations, and code pad tools through a combination of direct manipulation and AI-assisted chat. The output of this stage is a complete, publishable learning module page.
 
 ---
 
 ## Requirements
+
+### Requirement 0: Three-Stage Project Creation Workflow
+
+**User Story:** As a Designer, I want to be guided through a structured creation process, so that my onboarding project is well-scoped before I start editing.
+
+#### Acceptance Criteria
+
+1. WHEN a Designer creates a new Onboarding_Project, THE Builder SHALL immediately enter the **Init** stage, creating a project record in the database and scaffolding a blank React page for the project.
+2. AFTER the Init stage completes, THE Builder SHALL automatically advance the Designer to the **Intro** stage.
+3. DURING the Intro stage, THE Builder SHALL present a questionnaire collecting: (a) onboarding goals, (b) baseline requirements, and (c) example content or references.
+4. WHEN the Designer submits the Intro questionnaire, THE Builder SHALL pass the answers to the AI_Assistant along with a set of predefined system rules to generate an initial module layout.
+5. THE AI_Assistant SHALL return a first-draft set of Modules within 15 seconds of questionnaire submission.
+6. AFTER the AI generates the initial layout, THE Builder SHALL advance the Designer to the **Edit** stage, pre-populated with the AI-generated modules.
+7. DURING the Edit stage, THE Builder SHALL allow the Designer to iteratively add, modify, reorder, and delete Modules using both direct manipulation and AI-assisted chat.
+8. THE Builder SHALL persist the current stage (`init` | `intro` | `edit`) on the Project record so that a Designer who leaves mid-flow can resume from where they left off.
+9. THE Builder SHALL prevent a Designer from skipping the Intro stage — the Edit stage SHALL NOT be accessible until the Intro questionnaire has been submitted at least once.
+
+---
 
 ### Requirement 1: Designer Account and Project Management
 
