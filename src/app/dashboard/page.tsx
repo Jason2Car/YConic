@@ -1,28 +1,77 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+
+interface ProjectSummary {
+    id: string;
+    title: string;
+    description: string;
+    stage: string;
+    published: boolean;
+    slug: string | null;
+    createdAt: string;
+    updatedAt: string;
+    modules: { id: string }[];
+}
 
 export default function DashboardPage() {
     const router = useRouter();
+    const [projects, setProjects] = useState<ProjectSummary[]>([]);
+    const [loading, setLoading] = useState(true);
     const [showCreate, setShowCreate] = useState(false);
     const [newTitle, setNewTitle] = useState("");
     const [newDesc, setNewDesc] = useState("");
+    const [creating, setCreating] = useState(false);
 
-    const handleCreate = () => {
+    const fetchProjects = useCallback(async () => {
+        try {
+            const res = await fetch("/api/projects");
+            if (res.ok) {
+                const data = await res.json();
+                setProjects(Array.isArray(data) ? data : []);
+            }
+        } catch (err) {
+            console.error("Failed to fetch:", err);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => { fetchProjects(); }, [fetchProjects]);
+
+    const handleCreate = async () => {
         if (!newTitle.trim()) return;
-        // Generate a simple project ID and go to intro
-        const id = `proj_${Date.now()}`;
-        router.push(`/builder/${id}/intro`);
+        setCreating(true);
+        try {
+            const res = await fetch("/api/projects", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ title: newTitle.trim(), description: newDesc.trim() }),
+            });
+            if (res.ok) {
+                const project = await res.json();
+                router.push(`/builder/${project.id}/intro`);
+            }
+        } catch (err) {
+            console.error("Failed to create:", err);
+        } finally {
+            setCreating(false);
+        }
     };
 
-    const handleDemo = () => {
-        router.push("/builder/proj_demo/intro");
+    const handleDelete = async (id: string) => {
+        try {
+            await fetch(`/api/projects/${id}`, { method: "DELETE" });
+            setProjects((prev) => prev.filter((p) => p.id !== id));
+        } catch (err) {
+            console.error("Failed to delete:", err);
+        }
     };
 
     return (
         <div className="min-h-screen" style={{ backgroundColor: "#1e1e1e" }}>
-            <header className="border-b" style={{ borderColor: "#3e3e42", backgroundColor: "#252526" }}>
+            <header style={{ backgroundColor: "#252526", borderBottom: "1px solid #3e3e42" }}>
                 <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
                     <div>
                         <h1 className="text-lg font-semibold" style={{ color: "#cccccc" }}>Onboarding Project Builder</h1>
@@ -37,25 +86,60 @@ export default function DashboardPage() {
             </header>
 
             <main className="max-w-5xl mx-auto px-6 py-8">
-                <div className="text-center py-12">
-                    <div className="text-5xl mb-4 opacity-30">🚀</div>
-                    <h2 className="text-xl font-semibold mb-2" style={{ color: "#cccccc" }}>Get Started</h2>
-                    <p className="text-sm mb-8 max-w-md mx-auto" style={{ color: "#858585" }}>
-                        Create a new onboarding project or try the demo to see how it works.
-                    </p>
-                    <div className="flex items-center justify-center gap-4">
-                        <button onClick={() => setShowCreate(true)}
-                            className="px-6 py-3 rounded-lg text-sm font-medium text-white"
-                            style={{ backgroundColor: "#007acc" }}>
-                            Create New Project
-                        </button>
-                        <button onClick={handleDemo}
-                            className="px-6 py-3 rounded-lg text-sm font-medium"
-                            style={{ color: "#cccccc", border: "1px solid #3e3e42" }}>
-                            Try Demo
-                        </button>
+                {loading ? (
+                    <div className="text-center py-20">
+                        <p className="text-sm" style={{ color: "#858585" }}>Loading projects...</p>
                     </div>
-                </div>
+                ) : projects.length === 0 ? (
+                    <div className="text-center py-20">
+                        <div className="text-5xl mb-4 opacity-20">📋</div>
+                        <p className="text-sm mb-2" style={{ color: "#858585" }}>No projects yet</p>
+                        <p className="text-xs mb-6" style={{ color: "#555" }}>Create your first onboarding project to get started</p>
+                        <div className="flex items-center justify-center gap-3">
+                            <button onClick={() => setShowCreate(true)}
+                                className="px-4 py-2 rounded text-sm font-medium text-white"
+                                style={{ backgroundColor: "#007acc" }}>
+                                Create Project
+                            </button>
+                            <button onClick={() => router.push("/builder/proj_demo/intro")}
+                                className="px-4 py-2 rounded text-sm font-medium"
+                                style={{ color: "#cccccc", border: "1px solid #3e3e42" }}>
+                                Try Demo
+                            </button>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {projects.map((p) => (
+                            <div key={p.id} className="rounded-lg overflow-hidden"
+                                style={{ backgroundColor: "#252526", border: "1px solid #3e3e42" }}>
+                                <div className="p-4">
+                                    <h3 className="text-sm font-medium truncate" style={{ color: "#cccccc" }}>{p.title}</h3>
+                                    {p.description && <p className="text-xs mt-1 line-clamp-2" style={{ color: "#858585" }}>{p.description}</p>}
+                                    <div className="flex items-center gap-2 mt-2 text-xs" style={{ color: "#555" }}>
+                                        <span>{p.modules?.length ?? 0} modules</span>
+                                        <span>·</span>
+                                        <span>{p.stage}</span>
+                                        <span>·</span>
+                                        <span>{new Date(p.updatedAt).toLocaleDateString()}</span>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2 px-4 py-3" style={{ borderTop: "1px solid #3e3e42" }}>
+                                    <a href={`/builder/${p.id}/${p.stage === "edit" ? "edit" : "intro"}`}
+                                        className="flex-1 text-center text-xs py-1.5 rounded font-medium text-white"
+                                        style={{ backgroundColor: "#007acc" }}>
+                                        {p.stage === "edit" ? "Edit" : "Continue Setup"}
+                                    </a>
+                                    <button onClick={() => handleDelete(p.id)}
+                                        className="text-xs py-1.5 px-3 rounded"
+                                        style={{ color: "#f48771", border: "1px solid #f4877144" }}>
+                                        Delete
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </main>
 
             {showCreate && (
@@ -83,10 +167,10 @@ export default function DashboardPage() {
                         <div className="flex justify-end gap-2 mt-5">
                             <button onClick={() => setShowCreate(false)} className="px-4 py-2 rounded text-xs"
                                 style={{ color: "#858585", border: "1px solid #3e3e42" }}>Cancel</button>
-                            <button onClick={handleCreate} disabled={!newTitle.trim()}
+                            <button onClick={handleCreate} disabled={!newTitle.trim() || creating}
                                 className="px-4 py-2 rounded text-xs font-medium text-white"
-                                style={{ backgroundColor: !newTitle.trim() ? "#3e3e42" : "#007acc" }}>
-                                Create Project
+                                style={{ backgroundColor: !newTitle.trim() || creating ? "#3e3e42" : "#007acc" }}>
+                                {creating ? "Creating..." : "Create Project"}
                             </button>
                         </div>
                     </div>

@@ -14,15 +14,31 @@ export default function EditPage() {
     const params = useParams();
     const router = useRouter();
     const projectId = params?.projectId as string;
-    const { setProject, project } = useBuilderStore();
+    const { setProject, project, loadFromDb, saveToDb, isSaving } = useBuilderStore();
     const [activePanel, setActivePanel] = useState("explorer");
     const [sidebarVisible, setSidebarVisible] = useState(true);
+    const [loaded, setLoaded] = useState(false);
 
+    // Try to load from DB first, fall back to mock
     useEffect(() => {
-        if (!project || project.id !== projectId) {
-            setProject({ ...MOCK_PROJECT, id: projectId ?? MOCK_PROJECT.id });
-        }
-    }, [projectId, project, setProject]);
+        if (loaded) return;
+        (async () => {
+            if (!project || project.id !== projectId) {
+                const found = await loadFromDb(projectId);
+                if (!found) {
+                    setProject({ ...MOCK_PROJECT, id: projectId ?? MOCK_PROJECT.id });
+                }
+            }
+            setLoaded(true);
+        })();
+    }, [projectId, project, setProject, loadFromDb, loaded]);
+
+    // Auto-save every 10 seconds when project changes
+    useEffect(() => {
+        if (!project || project.id !== projectId) return;
+        const timer = setInterval(() => { saveToDb(); }, 10000);
+        return () => clearInterval(timer);
+    }, [project, projectId, saveToDb]);
 
     useEffect(() => {
         if (project && project.stage !== "edit") {
@@ -60,6 +76,16 @@ export default function EditPage() {
                     {project.title} — Onboarding Project Builder
                 </div>
                 <div className="absolute right-4 flex items-center gap-2">
+                    <span className="text-xs" style={{ color: isSaving ? "#f0a500" : "#4ade80" }}>
+                        {isSaving ? "Saving..." : "✓ Saved"}
+                    </span>
+                    <button
+                        onClick={() => saveToDb()}
+                        className="text-xs px-2 py-0.5 rounded transition-colors"
+                        style={{ color: "#858585", border: "1px solid #3e3e42" }}
+                    >
+                        💾 Save
+                    </button>
                     <button
                         onClick={() => router.push("/dashboard")}
                         className="text-xs px-2 py-0.5 rounded transition-colors"

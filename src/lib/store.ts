@@ -27,6 +27,8 @@ interface BuilderState {
   setAiThinking: (v: boolean) => void;
   setIntroData: (data: IntroFormData) => void;
   advanceToEdit: () => void;
+  saveToDb: () => Promise<void>;
+  loadFromDb: (projectId: string) => Promise<boolean>;
 }
 
 export const useBuilderStore = create<BuilderState>((set, get) => ({
@@ -148,5 +150,54 @@ export const useBuilderStore = create<BuilderState>((set, get) => ({
     const { project } = get();
     if (!project) return;
     set({ project: { ...project, stage: "edit" } });
+  },
+
+  saveToDb: async () => {
+    const { project, introData } = get();
+    if (!project) return;
+    set({ isSaving: true, saveError: false });
+    try {
+      await fetch(`/api/projects/${project.id}/save`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: project.title,
+          description: project.description,
+          stage: project.stage,
+          introData: introData || null,
+          modules: project.modules,
+        }),
+      });
+      set({ isSaving: false });
+    } catch (err) {
+      console.error("Save failed:", err);
+      set({ isSaving: false, saveError: true });
+    }
+  },
+
+  loadFromDb: async (projectId: string) => {
+    try {
+      const res = await fetch(`/api/projects/${projectId}`);
+      if (!res.ok) return false;
+      const data = await res.json();
+      set({
+        project: {
+          id: data.id,
+          title: data.title,
+          description: data.description,
+          slug: data.slug,
+          published: data.published,
+          stage: data.stage,
+          ownerId: null,
+          modules: data.modules || [],
+          createdAt: data.createdAt,
+          updatedAt: data.updatedAt,
+        },
+        introData: data.introData || null,
+      });
+      return true;
+    } catch {
+      return false;
+    }
   },
 }));
