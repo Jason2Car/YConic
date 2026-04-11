@@ -1,7 +1,13 @@
 import { prisma } from "@/server/db/prisma";
 import { NextResponse } from "next/server";
+import { z } from "zod";
 
-// GET /api/projects — list all projects
+const CreateProjectSchema = z.object({
+    title: z.string().min(1, "Title is required").max(200),
+    description: z.string().max(2000).default(""),
+});
+
+/** GET /api/projects — list all projects */
 export async function GET() {
     try {
         const projects = await prisma.project.findMany({
@@ -15,14 +21,22 @@ export async function GET() {
     }
 }
 
-// POST /api/projects — create a new project
+/** POST /api/projects — create a new project */
 export async function POST(req: Request) {
     try {
-        const { title, description } = await req.json();
+        const body = await req.json();
+        const parsed = CreateProjectSchema.safeParse(body);
+        if (!parsed.success) {
+            return NextResponse.json(
+                { error: "Invalid input", details: parsed.error.flatten().fieldErrors },
+                { status: 400 }
+            );
+        }
+
         const project = await prisma.project.create({
             data: {
-                title: title || "Untitled Project",
-                description: description || "",
+                title: parsed.data.title,
+                description: parsed.data.description,
                 stage: "edit",
             },
             include: { modules: true },

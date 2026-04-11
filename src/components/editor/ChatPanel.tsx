@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useChatStore, type ChatMessage, type ProposedChange } from "@/lib/store/chatStore";
 import { useEditorStore } from "@/lib/store/editorStore";
 import { useProjectStore } from "@/lib/store/projectStore";
-import type { ModuleContent, ModuleType } from "@/lib/mock/project";
+import type { ModuleContent, ModuleType } from "@/lib/types";
 import type { FlatChange } from "@/app/api/ai/chat/route";
 
 function flatChangeToModuleContent(data: FlatChange): ModuleContent | null {
@@ -53,7 +53,7 @@ function ProposedChangeCard({
     const { setSaveStatus } = useEditorStore();
     const { addModule, updateModule, deleteModule } = useProjectStore();
 
-    const handleApprove = () => {
+    const handleApprove = async () => {
         updateChangeStatus(message.id, "approved");
         setSaveStatus("saving");
 
@@ -64,20 +64,19 @@ function ProposedChangeCard({
             switch (data.changeType) {
                 case "add_module": {
                     const content = flatChangeToModuleContent(data);
-                    console.log("[Apply] add_module — contentType:", data.contentType, "moduleType:", data.moduleType, "content:", JSON.stringify(content)?.slice(0, 200));
                     if (!content) { setSaveStatus("error"); return; }
-                    const newId = addModule(
-                        (data.contentType ?? data.moduleType ?? "RICH_TEXT") as ModuleType,
+                    const newId = await addModule(
+                        (data.contentType ?? "RICH_TEXT") as ModuleType,
                         data.title ?? "New Module",
                         content
                     );
-                    useEditorStore.getState().setActiveModule(newId);
+                    if (newId) useEditorStore.getState().setActiveModule(newId);
                     break;
                 }
                 case "update_module": {
                     if (!data.moduleId) { setSaveStatus("error"); return; }
                     const content = flatChangeToModuleContent(data);
-                    updateModule(data.moduleId, {
+                    await updateModule(data.moduleId, {
                         title: data.title ?? undefined,
                         content: content ?? undefined,
                     });
@@ -86,7 +85,7 @@ function ProposedChangeCard({
                 }
                 case "delete_module": {
                     if (!data.moduleId) { setSaveStatus("error"); return; }
-                    deleteModule(data.moduleId);
+                    await deleteModule(data.moduleId);
                     break;
                 }
             }
@@ -300,7 +299,8 @@ export function ChatPanel() {
                     style={{ color: "#858585", border: "1px solid #3e3e42" }}
                     onMouseEnter={(e) => (e.currentTarget.style.color = "#cccccc")}
                     onMouseLeave={(e) => (e.currentTarget.style.color = "#858585")}
-                    title="Clear conversation">
+                    title="Clear conversation"
+                    aria-label="Clear conversation">
                     Clear
                 </button>
             </div>
@@ -338,7 +338,8 @@ export function ChatPanel() {
                         style={{
                             backgroundColor: !inputValue.trim() || isLoading ? "#3e3e42" : "#007acc",
                             color: !inputValue.trim() || isLoading ? "#858585" : "#ffffff",
-                        }}>
+                        }}
+                        aria-label="Send message">
                         Send
                     </button>
                 </div>

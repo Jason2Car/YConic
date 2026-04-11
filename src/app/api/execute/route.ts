@@ -1,84 +1,100 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+import { z } from "zod";
 
-const PISTON_URL = "https://emkc.org/api/v2/piston/execute";
-const TIMEOUT_MS = 15_000;
+const ExecuteSchema = z.object({
+    language: z.enum(["python", "javascript", "typescript"]),
+    code: z.string().min(1).max(50000),
+});
 
-const PISTON_LANG_MAP: Record<string, { language: string; version: string }> = {
-  python: { language: "python", version: "3.10.0" },
-  javascript: { language: "javascript", version: "18.15.0" },
-  typescript: { language: "typescript", version: "5.0.3" },
+const PISTON_URL = process.env.PISTON_API_URL || "https://emkc.org/api/v2/piston";
+
+/** Map our language names to Piston runtime identifiers */
+const LANGUAGE_MAP: Record<string, { language: string; version: string }> = {
+    python: { language: "python", version: "3.10.0" },
+    javascript: { language: "javascript", version: "18.15.0" },
+    typescript: { language: "typescript", version: "5.0.3" },
 };
 
-// Strips internal Piston container paths from error output
-function sanitizeOutput(text: string): string {
-  return text
-    .split("\n")
-    .filter((line) => !line.match(/\/piston\/jobs\//))
-    .join("\n");
+/** Strip internal Piston container paths from stderr to avoid leaking system details */
+function sanitizeStderr(stderr: string): string {
+    return stderr
+        .split("\n")
+        .filter((line) => !line.match(/\/piston\/jobs\//))
+        .filter((line) => !line.match(/^\/tmp\//))
+        .join("\n");
 }
 
-export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => null);
+/** POST /api/execute — sandboxed code execution via Piston API */
+export async function POST(req: Request) {
+    try {
+        const body = await req.json();
+        const parsed = ExecuteSchema.safeParse(body);
+        if (!parsed.success) {
+            return NextResponse.json(
+                { error: "Invalid input", details: parsed.error.flatten().fieldErrors },
+                { status: 400 }
+            );
+        }
 
-  if (!body || typeof body.code !== "string" || typeof body.language !== "string") {
-    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
-  }
+        const { language, code } = parsed.data;
+        const runtime = LANGUAGE_MAP[language];
 
-  const { code, language } = body as { code: string; language: string };
-  const pistonLang = PISTON_LANG_MAP[language];
+        // 15-second timeout
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 15000);
 
-  if (!pistonLang) {
-    return NextResponse.json({ error: `Unsupported language: ${language}` }, { status: 400 });
-  }
+        try {
+            const response = await fetch(`${PISTON_URL}/execute`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    language: runtime.language,
+                    version: runtime.version,
+                    files: [{ content: code }],
+                }),
+                signal: controller.signal,
+            });
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+            clearTimeout(timeout);
 
-  try {
-    const res = await fetch(PISTON_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      signal: controller.signal,
-      body: JSON.stringify({
-        language: pistonLang.language,
-        version: pistonLang.version,
-        files: [{ content: code }],
-      }),
-    });
+            if (!response.ok) {
+                return NextResponse.json(
+                    { error: "Code execution is temporarily unavailable." },
+                    { status: 503 }
+                );
+            }
 
-    clearTimeout(timer);
+            const result = await response.json();
+            const run = result.run || {};
 
-    if (!res.ok) {
-      return NextResponse.json(
-        { stdout: "", stderr: "Code execution service unavailable.", exitCode: 1, timedOut: false },
-        { status: 503 }
-      );
+            return NextResponse.json({
+                stdout: run.stdout || "",
+                stderr: sanitizeStderr(run.stderr || ""),
+                exitCode: run.code ?? 1,
+                timedOut: false,
+            });
+        } catch (err) {
+            clearTimeout(timeout);
+
+            if (err instanceof DOMException && err.name === "AbortError") {
+                return NextResponse.json({
+                    stdout: "",
+                    stderr: "Execution timed out after 15 seconds.",
+                    exitCode: 1,
+                    timedOut: true,
+                });
+            }
+
+            return NextResponse.json(
+                { error: "Code execution is temporarily unavailable." },
+                { status: 503 }
+            );
+        }
+    } catch (error) {
+        console.error("Execute route error:", error);
+        return NextResponse.json(
+            { error: "Code execution is temporarily unavailable." },
+            { status: 503 }
+        );
     }
-
-    const data = await res.json();
-    const run = data.run ?? {};
-
-    return NextResponse.json({
-      stdout: sanitizeOutput(run.stdout ?? ""),
-      stderr: sanitizeOutput(run.stderr ?? ""),
-      exitCode: run.code ?? 0,
-      timedOut: false,
-    });
-  } catch (err) {
-    clearTimeout(timer);
-
-    if (err instanceof Error && err.name === "AbortError") {
-      return NextResponse.json({
-        stdout: "",
-        stderr: "Execution timed out after 15 seconds.",
-        exitCode: 1,
-        timedOut: true,
-      });
-    }
-
-    return NextResponse.json(
-      { stdout: "", stderr: "Code execution is temporarily unavailable.", exitCode: 1, timedOut: false },
-      { status: 503 }
-    );
-  }
 }

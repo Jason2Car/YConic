@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import type { InteractiveVisualContent } from "@/lib/mock/project";
+import type { InteractiveVisualContent } from "@/lib/types";
 
 interface PreviewVisualProps {
     content: InteractiveVisualContent;

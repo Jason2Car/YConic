@@ -1,7 +1,7 @@
 "use client";
 
 import { useEditorStore } from "@/lib/store/editorStore";
-import type { Module, ModuleType } from "@/lib/mock/project";
+import type { Module, ModuleType } from "@/lib/types";
 
 interface ModuleTabsProps {
     modules: Module[];
@@ -103,6 +103,7 @@ export function ModuleTabs({ modules }: ModuleTabsProps) {
                                 e.currentTarget.style.color = "#858585";
                             }}
                             title="Close tab"
+                            aria-label={`Close ${module.title} tab`}
                         >
                             ×
                         </button>

@@ -1,0 +1,13 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "npx prisma generate && next build",
+  "env": {
+    "DATABASE_URL": "@database-url",
+    "AUTH_SECRET": "@auth-secret",
+    "AUTH_GOOGLE_ID": "@auth-google-id",
+    "AUTH_GOOGLE_SECRET": "@auth-google-secret",
+    "GROK_API_KEY": "@grok-api-key",
+    "GROK_BASE_URL": "@grok-base-url",
+    "GROK_MODEL": "@grok-model"
+  }
+}

@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useEditorStore } from "@/lib/store/editorStore";
-import type { Project } from "@/lib/mock/project";
+import { useProjectStore } from "@/lib/store/projectStore";
+import type { Project } from "@/lib/types";
 
 interface TitleBarProps {
     project: Project;
@@ -10,8 +11,36 @@ interface TitleBarProps {
 
 export function TitleBar({ project }: TitleBarProps) {
     const { saveStatus, previewMode, togglePreview } = useEditorStore();
+    const saveProject = useProjectStore((s) => s.saveProject);
     const [isEditingTitle, setIsEditingTitle] = useState(false);
     const [title, setTitle] = useState(project.title);
+    const [publishing, setPublishing] = useState(false);
+    const [publishedUrl, setPublishedUrl] = useState<string | null>(
+        project.published && project.slug ? `/p/${project.slug}` : null
+    );
+
+    const handleTitleSave = () => {
+        setIsEditingTitle(false);
+        if (title !== project.title) {
+            saveProject({ title });
+        }
+    };
+
+    const handlePublish = async () => {
+        setPublishing(true);
+        try {
+            const res = await fetch(`/api/projects/${project.id}/publish`, { method: "POST" });
+            if (res.ok) {
+                const data = await res.json();
+                setPublishedUrl(data.url);
+                navigator.clipboard?.writeText(window.location.origin + data.url);
+            }
+        } catch (err) {
+            console.error("Failed to publish:", err);
+        } finally {
+            setPublishing(false);
+        }
+    };
 
     const saveStatusConfig = {
         saved: { color: "bg-green-500", label: "Saved" },
@@ -34,8 +63,8 @@ export function TitleBar({ project }: TitleBarProps) {
                 {isEditingTitle ? (
                     <input autoFocus value={title}
                         onChange={(e) => setTitle(e.target.value)}
-                        onBlur={() => setIsEditingTitle(false)}
-                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === "Escape") setIsEditingTitle(false); }}
+                        onBlur={handleTitleSave}
+                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === "Escape") handleTitleSave(); }}
                         className="bg-[#3c3c3c] border border-[#007acc] rounded px-2 py-0.5 text-sm text-[#cccccc] outline-none min-w-[200px] text-center" />
                 ) : (
                     <button onClick={() => setIsEditingTitle(true)}
@@ -70,12 +99,23 @@ export function TitleBar({ project }: TitleBarProps) {
                     ↗
                 </button>
                 <button className="text-xs px-3 py-1 rounded font-medium text-white transition-colors"
-                    style={{ backgroundColor: "#007acc" }}
-                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#1a8ad4")}
-                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#007acc")}
-                    title="Publish project">
-                    Publish
+                    style={{ backgroundColor: publishing ? "#555" : "#007acc" }}
+                    onClick={handlePublish}
+                    disabled={publishing}
+                    onMouseEnter={(e) => { if (!publishing) e.currentTarget.style.backgroundColor = "#1a8ad4"; }}
+                    onMouseLeave={(e) => { if (!publishing) e.currentTarget.style.backgroundColor = "#007acc"; }}
+                    title={publishedUrl ? "Republish project" : "Publish project"}
+                    aria-label="Publish project">
+                    {publishing ? "Publishing..." : publishedUrl ? "Republish" : "Publish"}
                 </button>
+                {publishedUrl && (
+                    <a href={publishedUrl} target="_blank" rel="noopener noreferrer"
+                        className="text-xs px-2 py-1 rounded"
+                        style={{ color: "#4ade80", border: "1px solid #28a74555" }}
+                        aria-label="View published project">
+                        View ↗
+                    </a>
+                )}
             </div>
         </div>
     );

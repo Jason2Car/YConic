@@ -5,7 +5,7 @@ import { ModuleTabs } from "./ModuleTabs";
 import { RichTextModule } from "@/components/modules/RichTextModule";
 import { CodeEditorModule } from "@/components/modules/CodeEditorModule";
 import { VisualModule } from "@/components/modules/VisualModule";
-import type { Module } from "@/lib/mock/project";
+import type { Module } from "@/lib/types";
 
 interface EditorPanelProps {
     modules: Module[];

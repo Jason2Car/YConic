@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useEditorStore } from "@/lib/store/editorStore";
-import type { Module, ModuleType } from "@/lib/mock/project";
+import type { Module, ModuleType } from "@/lib/types";
 
 interface ModuleExplorerProps {
     modules: Module[];
