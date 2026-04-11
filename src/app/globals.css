@@ -1,0 +1,115 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Base ──────────────────────────────────────────────────────────── */
+html, body {
+  background-color: #0B1120;
+  color: #F1EFE8;
+  font-family: 'Plus Jakarta Sans', Inter, system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Scrollbars ────────────────────────────────────────────────────── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #1E2D45 transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: #1E2D45;
+  border-radius: 4px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: #2A3F5F;
+}
+
+/* ── Typography scale ──────────────────────────────────────────────── */
+.text-display {
+  font-size: 32px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+
+.text-heading {
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.text-body {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.7;
+}
+
+/* ── Tiptap prose ──────────────────────────────────────────────────── */
+.prose h1, .prose h2, .prose h3 {
+  color: #F0994A;   /* Amber Surge for headings — warm contrast on navy */
+  font-weight: 600;
+  margin-top: 1.25em;
+  margin-bottom: 0.5em;
+  letter-spacing: -0.01em;
+}
+
+.prose h2 { font-size: 18px; }
+.prose h3 { font-size: 15px; }
+
+.prose p {
+  color: #F1EFE8;
+  margin-bottom: 0.75em;
+  line-height: 1.7;
+  font-size: 14px;
+}
+
+.prose ul, .prose ol {
+  color: #F1EFE8;
+  padding-left: 1.5em;
+  margin-bottom: 0.75em;
+}
+
+.prose li {
+  margin-bottom: 0.25em;
+  font-size: 14px;
+}
+
+.prose code {
+  background: #1A2236;
+  color: #F0994A;
+  padding: 0.1em 0.4em;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: Consolas, Menlo, Monaco, monospace;
+  border: 1px solid #1E2D45;
+}
+
+.prose strong {
+  color: #F1EFE8;
+  font-weight: 600;
+}
+
+.prose em {
+  color: #8A9BB5;
+  font-style: italic;
+}
+
+/* ── Mermaid ───────────────────────────────────────────────────────── */
+.mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
