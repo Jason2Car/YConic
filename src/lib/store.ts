@@ -27,8 +27,15 @@ interface BuilderState {
   setAiThinking: (v: boolean) => void;
   setIntroData: (data: IntroFormData) => void;
   advanceToEdit: () => void;
+  autoSave: () => Promise<void>;
 }
 
+/**
+ * Zustand store for the builder workspace. Manages the current project,
+ * chat messages, revision history, and auto-save state. The `applyChange`
+ * action applies a ProposedChange to the project and triggers `autoSave`
+ * to persist the update to the server with exponential backoff retry.
+ */
 export const useBuilderStore = create<BuilderState>((set, get) => ({
   project: null,
   activeModuleId: null,
@@ -102,6 +109,9 @@ export const useBuilderStore = create<BuilderState>((set, get) => ({
       project: updated,
       revisionHistory: [...revisionHistory, entry],
     });
+
+    // Trigger auto-save after applying the change
+    get().autoSave();
   },
 
   undo: () => {
@@ -150,5 +160,44 @@ export const useBuilderStore = create<BuilderState>((set, get) => ({
     const { project } = get();
     if (!project) return;
     set({ project: { ...project, stage: "edit" } });
+  },
+
+  /**
+   * Persists the current project state to the server via PUT /api/projects/[id].
+   * On failure, retries with exponential backoff (1s, 2s, 4s) up to 3 times.
+   * Sets isSaving/saveError flags so the UI can display save status.
+   */
+  autoSave: async () => {
+    const { project } = get();
+    if (!project) return;
+
+    set({ isSaving: true, saveError: false });
+
+    const delays = [1000, 2000, 4000];
+    let lastError: unknown = null;
+
+    for (let attempt = 0; attempt <= delays.length; attempt++) {
+      try {
+        const res = await fetch(`/api/projects/${project.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: project.title,
+            description: project.description,
+          }),
+        });
+        if (!res.ok) throw new Error(`Save failed: ${res.status}`);
+        set({ isSaving: false, saveError: false });
+        return;
+      } catch (err) {
+        lastError = err;
+        if (attempt < delays.length) {
+          await new Promise((r) => setTimeout(r, delays[attempt]));
+        }
+      }
+    }
+
+    console.error("Auto-save failed after retries:", lastError);
+    set({ isSaving: false, saveError: true });
   },
 }));

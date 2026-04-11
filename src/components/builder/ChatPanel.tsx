@@ -74,26 +74,6 @@ function MessageBubble({
   );
 }
 
-// ─── Try to extract a JSON proposed-change block from AI text ────────────────
-
-function extractProposedChange(text: string): ProposedChange | null {
-  const jsonMatch = text.match(/```json\s*([\s\S]*?)```/);
-  if (!jsonMatch) return null;
-  try {
-    const parsed = JSON.parse(jsonMatch[1]);
-    if (parsed.type && parsed.description && parsed.payload) {
-      return parsed as ProposedChange;
-    }
-  } catch {
-    // not valid JSON — ignore
-  }
-  return null;
-}
-
-function stripJsonBlock(text: string): string {
-  return text.replace(/```json\s*[\s\S]*?```/, "").trim();
-}
-
 // ─── Chat Panel ──────────────────────────────────────────────────────────────
 
 export function ChatPanel() {
@@ -199,41 +179,16 @@ export function ChatPanel() {
         throw new Error(`API error: ${res.status}`);
       }
 
-      // Stream the response — plain text stream from toTextStreamResponse()
-      const reader = res.body?.getReader();
-      const decoder = new TextDecoder();
-      let fullText = "";
-      const aiMsgId = `msg_${Date.now()}_ai`;
+      const data = await res.json();
+      const proposedChange = data.object as ProposedChange;
 
-      // Add a placeholder message
       addMessage({
-        id: aiMsgId,
+        id: `msg_${Date.now()}_ai`,
         role: "assistant",
-        content: "",
+        content: proposedChange.description,
+        proposedChange,
+        status: "pending",
       });
-
-      if (reader) {
-        let done = false;
-        while (!done) {
-          const { value, done: streamDone } = await reader.read();
-          done = streamDone;
-          if (value) {
-            const chunk = decoder.decode(value, { stream: true });
-            fullText += chunk;
-            updateMessage(aiMsgId, { content: fullText });
-          }
-        }
-      }
-
-      // Check if the response contains a proposed change
-      const proposedChange = extractProposedChange(fullText);
-      if (proposedChange) {
-        updateMessage(aiMsgId, {
-          content: stripJsonBlock(fullText) || proposedChange.description,
-          proposedChange,
-          status: "pending",
-        });
-      }
     } catch (err) {
       // Fallback: if API fails (no key, network error), use mock
       console.warn("Grok API unavailable, using mock response:", err);
@@ -387,7 +342,6 @@ export function ChatPanel() {
 function generateMockAiResponse(userText: string, forceType: string | null = null): ChatMessage {
   const lower = userText.toLowerCase();
 
-  // If @command forced a type, always use that type
   if (forceType === "RICH_TEXT" || (!forceType && (lower.includes("rich text") || lower.includes("welcome") || lower.includes("text") || lower.includes("guide") || lower.includes("documentation")))) {
     return {
       id: `msg_${Date.now()}`,

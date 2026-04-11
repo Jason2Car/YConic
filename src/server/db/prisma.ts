@@ -1,23 +1,15 @@
-// Prisma client stub — replace with real client once schema is set up
-// This allows the app to build without a database connection
+import { PrismaClient } from "@prisma/client";
 
-const handler = {
-  get(_target: unknown, prop: string): unknown {
-    // Return a chainable proxy for any model access (e.g. prisma.project.findUnique)
-    return new Proxy(
-      {},
-      {
-        get(_t: unknown, method: string) {
-          return async (..._args: unknown[]) => {
-            console.warn(
-              `[prisma stub] ${prop}.${method}() called — no database configured`
-            );
-            return null;
-          };
-        },
-      }
-    );
-  },
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClient | undefined;
 };
 
-export const prisma = new Proxy({}, handler) as any;
+export const prisma =
+  globalForPrisma.prisma ??
+  new PrismaClient({
+    log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
+  });
+
+if (process.env.NODE_ENV !== "production") {
+  globalForPrisma.prisma = prisma;
+}

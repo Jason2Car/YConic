@@ -1,0 +1,157 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String    @id @default(cuid())
+  email     String    @unique
+  name      String?
+  image     String?
+  role      UserRole  @default(DESIGNER)
+  projects  Project[]
+  sessions  Session[]
+  createdAt DateTime  @default(now())
+}
+
+enum UserRole {
+  DESIGNER
+  RECRUITER
+}
+
+model Project {
+  id          String              @id @default(cuid())
+  title       String
+  description String              @default("")
+  stage       ProjectStage        @default(INIT)
+  slug        String?             @unique
+  published   Boolean             @default(false)
+  ownerId     String?
+  owner       User?               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  modules     Module[]
+  sessions    Session[]
+  enrollments JoineeEnrollment[]
+  introData   Json?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+}
+
+model Module {
+  id        String     @id @default(cuid())
+  projectId String
+  project   Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  type      ModuleType
+  title     String     @default("Untitled Module")
+  position  Int
+  content   Json?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([projectId, position])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  history   Json     @default("[]")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum ProjectStage {
+  INIT
+  INTRO
+  EDIT
+}
+
+enum ModuleType {
+  RICH_TEXT
+  INTERACTIVE_VISUAL
+  CODE_EDITOR
+}
+
+model Joinee {
+  id          String             @id @default(cuid())
+  email       String             @unique
+  name        String
+  jobTitle    String
+  enrollments JoineeEnrollment[]
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+}
+
+model JoineeEnrollment {
+  id                  String               @id @default(cuid())
+  joineeId            String
+  joinee              Joinee               @relation(fields: [joineeId], references: [id], onDelete: Cascade)
+  sourceProjectId     String
+  sourceProject       Project              @relation(fields: [sourceProjectId], references: [id], onDelete: Restrict)
+  recruiterId         String
+  stage               EnrollmentStage      @default(ENROLL)
+  profile             Json?
+  personalizationPlan Json?
+  joineeSlug          String?              @unique
+  personalizedProject PersonalizedProject?
+  deliveredAt         DateTime?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  @@index([sourceProjectId])
+  @@index([joineeId])
+  @@index([recruiterId])
+}
+
+model PersonalizedProject {
+  id           String              @id @default(cuid())
+  enrollmentId String              @unique
+  enrollment   JoineeEnrollment    @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  title        String
+  modules      PersonalizedModule[]
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+}
+
+model PersonalizedModule {
+  id                    String              @id @default(cuid())
+  personalizedProjectId String
+  personalizedProject   PersonalizedProject @relation(fields: [personalizedProjectId], references: [id], onDelete: Cascade)
+  sourceModuleId        String?
+  type                  ModuleType
+  title                 String
+  position              Int
+  adaptationType        AdaptationType
+  contentDepth          ContentDepth
+  content               Json
+  rationale             String              @default("")
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  @@index([personalizedProjectId, position])
+}
+
+enum EnrollmentStage {
+  ENROLL
+  PROFILE
+  PERSONALIZE
+  DELIVERED
+}
+
+enum AdaptationType {
+  STANDARD
+  FAST_TRACK
+  SUPPLEMENTAL
+  ADVANCED
+}
+
+enum ContentDepth {
+  FOUNDATIONAL
+  STANDARD
+  ADVANCED
+}

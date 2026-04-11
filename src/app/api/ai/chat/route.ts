@@ -1,7 +1,15 @@
 import { xai } from "@ai-sdk/xai";
-import { streamText } from "ai";
+import { generateObject } from "ai";
+import { z } from "zod";
+import { NextResponse } from "next/server";
 
 export const maxDuration = 30;
+
+const ProposedChangeSchema = z.object({
+  type: z.enum(["add_module", "update_module", "delete_module", "update_project_meta"]),
+  description: z.string(),
+  payload: z.record(z.unknown()),
+});
 
 interface IntroContext {
   goals: string;
@@ -27,6 +35,15 @@ interface ChatMsg {
   content: string;
 }
 
+/**
+ * Builds the system prompt for the AI assistant based on intro questionnaire
+ * data and the current project state. The prompt instructs the AI to act as
+ * an Adaptive Learning Architect that proposes structured module changes.
+ *
+ * @param intro - Intro questionnaire data (goals, skills, rules, examples)
+ * @param project - Current project snapshot (title, description, modules)
+ * @returns The assembled system prompt string
+ */
 function buildSystemPrompt(
   intro: IntroContext | null,
   project: ProjectContext | null
@@ -48,21 +65,17 @@ PERSONALIZATION RULES:
 - Supplemental modules are RICH_TEXT or INTERACTIVE_VISUAL only, ≤ 500 words, ending with a bridge sentence
 - The final module should serve as a competency checkpoint
 
-You can propose changes to the project by responding with structured JSON when the user asks you to add or modify modules. For normal conversation, just respond in plain text.
-
-When proposing a module change, include a JSON block in your response wrapped in \`\`\`json ... \`\`\` with this structure:
-{
-  "type": "add_module" | "update_module" | "delete_module",
-  "description": "Human-readable summary of the change",
-  "payload": { ... module data ... }
-}
+You MUST respond with a structured JSON object representing a proposed change. The object must have:
+- "type": one of "add_module", "update_module", "delete_module", "update_project_meta"
+- "description": a human-readable summary of the change
+- "payload": an object with the module data
 
 Module types you can create:
 - RICH_TEXT: { type: "RICH_TEXT", title: "...", content: { type: "RICH_TEXT", html: "..." } }
 - INTERACTIVE_VISUAL: { type: "INTERACTIVE_VISUAL", title: "...", content: { type: "INTERACTIVE_VISUAL", visualType: "flowchart"|"sequence"|"annotated_steps", mermaidDefinition: "...", annotations: [] } }
 - CODE_EDITOR: { type: "CODE_EDITOR", title: "...", content: { type: "CODE_EDITOR", language: "python"|"javascript"|"typescript", starterCode: "...", hint?: "...", solution?: "...", expectedOutput?: "..." } }
 
-Keep responses concise and actionable. When proposing changes, explain what you're doing in 1-2 sentences before the JSON block.`;
+Keep descriptions concise and actionable.`;
 
   if (intro) {
     prompt += `\n\n--- ONBOARDING PROJECT CONTEXT ---`;
@@ -119,14 +132,39 @@ export async function POST(req: Request) {
 
   const systemPrompt = buildSystemPrompt(introContext, projectContext);
 
-  try {
-    const result = await streamText({
+  const attempt = async (extraInstruction?: string) => {
+    const msgs = messages.map((m) => ({ role: m.role, content: m.content }));
+    if (extraInstruction) {
+      const last = msgs[msgs.length - 1];
+      if (last) {
+        msgs[msgs.length - 1] = {
+          ...last,
+          content: `${last.content}\n\n${extraInstruction}`,
+        };
+      }
+    }
+
+    return generateObject({
       model: xai("grok-3-mini"),
       system: systemPrompt,
-      messages: messages.map((m) => ({ role: m.role, content: m.content })),
+      messages: msgs,
+      schema: ProposedChangeSchema,
+      schemaName: "ProposedChange",
     });
+  };
 
-    return result.toTextStreamResponse();
+  try {
+    let result;
+    try {
+      result = await attempt();
+    } catch {
+      // Retry once with an amended prompt if validation fails
+      result = await attempt(
+        "IMPORTANT: You must respond with valid JSON matching the ProposedChange schema exactly. Include type, description, and payload fields."
+      );
+    }
+
+    return NextResponse.json({ object: result.object });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "AI service unavailable";
     const status =
@@ -134,9 +172,6 @@ export async function POST(req: Request) {
         ? (err as { statusCode: number }).statusCode
         : 500;
 
-    return new Response(JSON.stringify({ error: message }), {
-      status,
-      headers: { "Content-Type": "application/json" },
-    });
+    return NextResponse.json({ error: message }, { status });
   }
 }
