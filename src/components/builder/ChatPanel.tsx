@@ -21,20 +21,18 @@ function MessageBubble({
   return (
     <div className={`flex gap-2 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
       <div
-        className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
-          isUser ? "bg-vsc-accent" : "bg-vsc-green/30"
-        }`}
+        className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${isUser ? "bg-vsc-accent" : "bg-vsc-green/30"
+          }`}
       >
         {isUser ? <User size={12} className="text-white" /> : <Bot size={12} className="text-vsc-green" />}
       </div>
 
       <div className={`flex flex-col gap-1 max-w-[85%] ${isUser ? "items-end" : "items-start"}`}>
         <div
-          className={`rounded-lg px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap ${
-            isUser
-              ? "bg-vsc-accent/20 text-vsc-text"
-              : "bg-vsc-sidebar border border-vsc-border text-vsc-text"
-          }`}
+          className={`rounded-lg px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap ${isUser
+            ? "bg-vsc-accent/20 text-vsc-text"
+            : "bg-vsc-sidebar border border-vsc-border text-vsc-text"
+            }`}
         >
           {message.content}
         </div>
@@ -125,6 +123,16 @@ export function ChatPanel() {
     const text = input.trim();
     if (!text || isAiThinking) return;
 
+    // Parse @commands to force a specific module type
+    let forceType: string | null = null;
+    let cleanedText = text;
+    const commandMatch = text.match(/^@(code|text|visual)\s+/i);
+    if (commandMatch) {
+      const cmd = commandMatch[1].toLowerCase();
+      forceType = cmd === "code" ? "CODE_EDITOR" : cmd === "text" ? "RICH_TEXT" : "INTERACTIVE_VISUAL";
+      cleanedText = text.slice(commandMatch[0].length).trim() || text;
+    }
+
     const userMsg: ChatMessage = {
       id: `msg_${Date.now()}`,
       role: "user",
@@ -134,40 +142,47 @@ export function ChatPanel() {
     setInput("");
     setAiThinking(true);
 
+    // If @command was used, append a type constraint to the prompt
+    let aiPromptText = cleanedText;
+    if (forceType) {
+      const typeLabel = forceType === "CODE_EDITOR" ? "CODE_EDITOR (code exercise)" : forceType === "RICH_TEXT" ? "RICH_TEXT (text/documentation)" : "INTERACTIVE_VISUAL (diagram/flowchart)";
+      aiPromptText = `${cleanedText}\n\nIMPORTANT: You MUST create a ${typeLabel} module. Do NOT use any other module type.`;
+    }
+
     try {
       // Build the conversation history for the API
       const apiMessages = [
         ...messages.map((m) => ({ role: m.role, content: m.content })),
-        { role: "user" as const, content: text },
+        { role: "user" as const, content: aiPromptText },
       ];
 
       // Build intro context from store
       const introContext = introData
         ? {
-            goals: introData.goals,
-            baselineSkills: introData.baselineSkills,
-            customSkills: introData.customSkills,
-            rules: introData.rules,
-            examples: introData.examples.map((e) => ({
-              type: e.type,
-              label: e.label,
-              value: e.value,
-            })),
-          }
+          goals: introData.goals,
+          baselineSkills: introData.baselineSkills,
+          customSkills: introData.customSkills,
+          rules: introData.rules,
+          examples: introData.examples.map((e) => ({
+            type: e.type,
+            label: e.label,
+            value: e.value,
+          })),
+        }
         : null;
 
       // Build project context
       const projectContext = project
         ? {
-            title: project.title,
-            description: project.description,
-            modules: project.modules.map((m) => ({
-              id: m.id,
-              type: m.type,
-              title: m.title,
-              position: m.position,
-            })),
-          }
+          title: project.title,
+          description: project.description,
+          modules: project.modules.map((m) => ({
+            id: m.id,
+            type: m.type,
+            title: m.title,
+            position: m.position,
+          })),
+        }
         : null;
 
       const res = await fetch("/api/ai/chat", {
@@ -222,7 +237,7 @@ export function ChatPanel() {
     } catch (err) {
       // Fallback: if API fails (no key, network error), use mock
       console.warn("Grok API unavailable, using mock response:", err);
-      const mockResponse = generateMockAiResponse(text);
+      const mockResponse = generateMockAiResponse(cleanedText, forceType);
       addMessage(mockResponse);
     } finally {
       setAiThinking(false);
@@ -254,15 +269,15 @@ export function ChatPanel() {
   // Build contextual quick prompts based on intro data
   const quickPrompts = introData
     ? [
-        `Add a welcome module based on our onboarding goals`,
-        `Create a visual showing our system architecture`,
-        `Add a code exercise for the baseline skills`,
-      ]
+      `Add a welcome module based on our onboarding goals`,
+      `Create a visual showing our system architecture`,
+      `Add a code exercise for the baseline skills`,
+    ]
     : [
-        "Add a welcome rich text module",
-        "Add a flowchart showing the request lifecycle",
-        "Add a Python code exercise",
-      ];
+      "Add a welcome rich text module",
+      "Add a flowchart showing the request lifecycle",
+      "Add a Python code exercise",
+    ];
 
   return (
     <div className="flex flex-col w-80 shrink-0 border-l border-vsc-border bg-vsc-sidebar">
@@ -271,7 +286,7 @@ export function ChatPanel() {
         <div className="flex items-center gap-2">
           <Bot size={15} className="text-vsc-green" />
           <span className="text-sm font-medium text-vsc-text">AI Assistant</span>
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-vsc-accent/15 text-vsc-accent font-medium">OpenRouter</span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-vsc-accent/15 text-vsc-accent font-medium">Grok 4</span>
         </div>
         <button
           onClick={undo}
@@ -346,7 +361,7 @@ export function ChatPanel() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask the AI to modify your project..."
+            placeholder="@text, @visual, @code to force type — or just ask..."
             rows={1}
             className="flex-1 bg-transparent text-sm text-vsc-text placeholder-vsc-text-muted resize-none focus:outline-none max-h-32 leading-relaxed"
             style={{ minHeight: "20px" }}
@@ -360,7 +375,7 @@ export function ChatPanel() {
           </button>
         </div>
         <p className="text-xs text-vsc-text-muted mt-1.5 text-center">
-          Enter to send · Shift+Enter for newline
+          <span className="text-vsc-green">@text</span> · <span className="text-vsc-accent">@visual</span> · <span className="text-blue-400">@code</span> to force type · Enter to send
         </p>
       </div>
     </div>
@@ -369,10 +384,11 @@ export function ChatPanel() {
 
 // ─── Fallback mock (used when Grok API is unavailable) ───────────────────────
 
-function generateMockAiResponse(userText: string): ChatMessage {
+function generateMockAiResponse(userText: string, forceType: string | null = null): ChatMessage {
   const lower = userText.toLowerCase();
 
-  if (lower.includes("rich text") || lower.includes("welcome") || lower.includes("text")) {
+  // If @command forced a type, always use that type
+  if (forceType === "RICH_TEXT" || (!forceType && (lower.includes("rich text") || lower.includes("welcome") || lower.includes("text") || lower.includes("guide") || lower.includes("documentation")))) {
     return {
       id: `msg_${Date.now()}`,
       role: "assistant",
@@ -390,7 +406,7 @@ function generateMockAiResponse(userText: string): ChatMessage {
     };
   }
 
-  if (lower.includes("flowchart") || lower.includes("diagram") || lower.includes("visual") || lower.includes("architecture")) {
+  if (forceType === "INTERACTIVE_VISUAL" || (!forceType && (lower.includes("flowchart") || lower.includes("diagram") || lower.includes("visual") || lower.includes("architecture")))) {
     return {
       id: `msg_${Date.now()}`,
       role: "assistant",
@@ -413,7 +429,7 @@ function generateMockAiResponse(userText: string): ChatMessage {
     };
   }
 
-  if (lower.includes("code") || lower.includes("exercise") || lower.includes("python") || lower.includes("javascript")) {
+  if (forceType === "CODE_EDITOR" || (!forceType && (lower.includes("code") || lower.includes("exercise") || lower.includes("python") || lower.includes("javascript")))) {
     const lang = lower.includes("python") ? "python" : lower.includes("javascript") ? "javascript" : "typescript";
     return {
       id: `msg_${Date.now()}`,

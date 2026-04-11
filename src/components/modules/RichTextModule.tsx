@@ -1,188 +1,178 @@
 "use client";
 
-import { useEditor, EditorContent } from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
-import Placeholder from "@tiptap/extension-placeholder";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import dynamic from "next/dynamic";
+import { useBuilderStore } from "@/lib/store";
 import type { RichTextContent } from "@/lib/types";
 
+const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
+    ssr: false,
+    loading: () => (
+        <div className="flex items-center justify-center h-full" style={{ backgroundColor: "#1e1e1e" }}>
+            <span className="text-xs" style={{ color: "#858585" }}>Loading editor...</span>
+        </div>
+    ),
+});
+
 interface RichTextModuleProps {
+    moduleId?: string;
     content: RichTextContent;
-    onChange?: (html: string) => void;
     readOnly?: boolean;
 }
 
-const ToolbarButton = ({
-    onClick,
-    active,
-    title,
-    children,
-}: {
-    onClick: () => void;
-    active?: boolean;
-    title: string;
-    children: React.ReactNode;
-}) => (
-    <button
-        onClick={onClick}
-        title={title}
-        className="px-2 py-1 rounded text-xs transition-colors"
-        style={{
-            backgroundColor: active ? "#3e3e42" : "transparent",
-            color: active ? "#cccccc" : "#858585",
-            border: active ? "1px solid #555" : "1px solid transparent",
-        }}
-        onMouseEnter={(e) => {
-            if (!active) {
-                e.currentTarget.style.backgroundColor = "#2a2d2e";
-                e.currentTarget.style.color = "#cccccc";
-            }
-        }}
-        onMouseLeave={(e) => {
-            if (!active) {
-                e.currentTarget.style.backgroundColor = "transparent";
-                e.currentTarget.style.color = "#858585";
-            }
-        }}
-    >
-        {children}
-    </button>
-);
-
-export function RichTextModule({
-    content,
-    onChange,
-    readOnly = false,
-}: RichTextModuleProps) {
-    const editor = useEditor({
-        extensions: [
-            StarterKit,
-            Placeholder.configure({
-                placeholder: "Start writing your module content...",
-            }),
-        ],
-        content: content.html,
-        editable: !readOnly,
-        onUpdate: ({ editor }) => {
-            onChange?.(editor.getHTML());
-        },
-        editorProps: {
-            attributes: {
-                class: "tiptap-editor",
-            },
-        },
+// Simple HTML → Markdown converter (no external dep needed at runtime)
+function htmlToMarkdown(html: string): string {
+    let md = html;
+    // Headings
+    md = md.replace(/<h1[^>]*>(.*?)<\/h1>/gi, "# $1\n\n");
+    md = md.replace(/<h2[^>]*>(.*?)<\/h2>/gi, "## $1\n\n");
+    md = md.replace(/<h3[^>]*>(.*?)<\/h3>/gi, "### $1\n\n");
+    md = md.replace(/<h4[^>]*>(.*?)<\/h4>/gi, "#### $1\n\n");
+    // Bold / italic / strikethrough
+    md = md.replace(/<strong[^>]*>(.*?)<\/strong>/gi, "**$1**");
+    md = md.replace(/<b[^>]*>(.*?)<\/b>/gi, "**$1**");
+    md = md.replace(/<em[^>]*>(.*?)<\/em>/gi, "*$1*");
+    md = md.replace(/<i[^>]*>(.*?)<\/i>/gi, "*$1*");
+    md = md.replace(/<s[^>]*>(.*?)<\/s>/gi, "~~$1~~");
+    // Code
+    md = md.replace(/<code[^>]*>(.*?)<\/code>/gi, "`$1`");
+    md = md.replace(/<pre[^>]*><code[^>]*>([\s\S]*?)<\/code><\/pre>/gi, "```\n$1\n```\n\n");
+    // Links
+    md = md.replace(/<a[^>]*href="([^"]*)"[^>]*>(.*?)<\/a>/gi, "[$2]($1)");
+    // Lists
+    md = md.replace(/<ul[^>]*>([\s\S]*?)<\/ul>/gi, (_, inner) => {
+        return inner.replace(/<li[^>]*>(.*?)<\/li>/gi, "- $1\n") + "\n";
     });
+    md = md.replace(/<ol[^>]*>([\s\S]*?)<\/ol>/gi, (_, inner) => {
+        let i = 0;
+        return inner.replace(/<li[^>]*>(.*?)<\/li>/gi, () => { i++; return `${i}. ${arguments[1] || ""}\n`; }) + "\n";
+    });
+    // Paragraphs and breaks
+    md = md.replace(/<br\s*\/?>/gi, "\n");
+    md = md.replace(/<p[^>]*>(.*?)<\/p>/gi, "$1\n\n");
+    md = md.replace(/<hr\s*\/?>/gi, "---\n\n");
+    // Blockquote
+    md = md.replace(/<blockquote[^>]*>([\s\S]*?)<\/blockquote>/gi, (_, inner) => {
+        return inner.split("\n").map((l: string) => `> ${l}`).join("\n") + "\n\n";
+    });
+    // Strip remaining tags
+    md = md.replace(/<[^>]+>/g, "");
+    // Decode entities
+    md = md.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, " ");
+    // Clean up extra newlines
+    md = md.replace(/\n{3,}/g, "\n\n").trim();
+    return md;
+}
 
-    if (!editor) return null;
+// Simple Markdown → HTML converter
+function markdownToHtml(md: string): string {
+    let html = md;
+    // Code blocks (before other processing)
+    html = html.replace(/```(\w*)\n([\s\S]*?)```/g, "<pre><code>$2</code></pre>");
+    // Headings
+    html = html.replace(/^#### (.+)$/gm, "<h4>$1</h4>");
+    html = html.replace(/^### (.+)$/gm, "<h3>$1</h3>");
+    html = html.replace(/^## (.+)$/gm, "<h2>$1</h2>");
+    html = html.replace(/^# (.+)$/gm, "<h1>$1</h1>");
+    // HR
+    html = html.replace(/^---$/gm, "<hr>");
+    // Bold / italic
+    html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+    html = html.replace(/\*(.+?)\*/g, "<em>$1</em>");
+    html = html.replace(/~~(.+?)~~/g, "<s>$1</s>");
+    // Inline code
+    html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
+    // Links
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+    // Blockquotes
+    html = html.replace(/^> (.+)$/gm, "<blockquote>$1</blockquote>");
+    // Unordered lists
+    html = html.replace(/^- (.+)$/gm, "<li>$1</li>");
+    html = html.replace(/(<li>.*<\/li>\n?)+/g, "<ul>$&</ul>");
+    // Paragraphs — wrap remaining lines
+    html = html.split("\n\n").map((block) => {
+        const trimmed = block.trim();
+        if (!trimmed) return "";
+        if (trimmed.startsWith("<h") || trimmed.startsWith("<ul") || trimmed.startsWith("<ol") ||
+            trimmed.startsWith("<pre") || trimmed.startsWith("<hr") || trimmed.startsWith("<blockquote")) {
+            return trimmed;
+        }
+        return `<p>${trimmed.replace(/\n/g, "<br>")}</p>`;
+    }).join("\n");
+    return html;
+}
+
+export function RichTextModule({ moduleId, content, readOnly = false }: RichTextModuleProps) {
+    const updateModuleContent = useBuilderStore((s) => s.updateModuleContent);
+
+    const initialMarkdown = useMemo(() => htmlToMarkdown(content.html || ""), [content.html]);
+    const [markdown, setMarkdown] = useState(initialMarkdown);
+
+    // Sync when switching modules
+    useEffect(() => {
+        setMarkdown(htmlToMarkdown(content.html || ""));
+    }, [moduleId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const handleChange = useCallback((value: string | undefined) => {
+        const md = value ?? "";
+        setMarkdown(md);
+        if (moduleId) {
+            updateModuleContent(moduleId, { type: "RICH_TEXT", html: markdownToHtml(md) });
+        }
+    }, [moduleId, updateModuleContent]);
 
     return (
         <div className="flex flex-col h-full" style={{ backgroundColor: "#1e1e1e" }}>
-            {/* Toolbar */}
-            {!readOnly && (
-                <div
-                    className="flex items-center gap-1 px-3 py-1.5 shrink-0 flex-wrap"
-                    style={{
-                        backgroundColor: "#2d2d30",
-                        borderBottom: "1px solid #3e3e42",
-                    }}
-                >
-                    <ToolbarButton
-                        onClick={() => editor.chain().focus().toggleBold().run()}
-                        active={editor.isActive("bold")}
-                        title="Bold (Ctrl+B)"
-                    >
-                        <strong>B</strong>
-                    </ToolbarButton>
-                    <ToolbarButton
-                        onClick={() => editor.chain().focus().toggleItalic().run()}
-                        active={editor.isActive("italic")}
-                        title="Italic (Ctrl+I)"
-                    >
-                        <em>I</em>
-                    </ToolbarButton>
-                    <div
-                        className="w-px h-4 mx-1"
-                        style={{ backgroundColor: "#3e3e42" }}
-                    />
-                    <ToolbarButton
-                        onClick={() =>
-                            editor.chain().focus().toggleHeading({ level: 1 }).run()
-                        }
-                        active={editor.isActive("heading", { level: 1 })}
-                        title="Heading 1"
-                    >
-                        H1
-                    </ToolbarButton>
-                    <ToolbarButton
-                        onClick={() =>
-                            editor.chain().focus().toggleHeading({ level: 2 }).run()
-                        }
-                        active={editor.isActive("heading", { level: 2 })}
-                        title="Heading 2"
-                    >
-                        H2
-                    </ToolbarButton>
-                    <ToolbarButton
-                        onClick={() =>
-                            editor.chain().focus().toggleHeading({ level: 3 }).run()
-                        }
-                        active={editor.isActive("heading", { level: 3 })}
-                        title="Heading 3"
-                    >
-                        H3
-                    </ToolbarButton>
-                    <div
-                        className="w-px h-4 mx-1"
-                        style={{ backgroundColor: "#3e3e42" }}
-                    />
-                    <ToolbarButton
-                        onClick={() => editor.chain().focus().toggleBulletList().run()}
-                        active={editor.isActive("bulletList")}
-                        title="Bullet List"
-                    >
-                        • List
-                    </ToolbarButton>
-                    <ToolbarButton
-                        onClick={() => editor.chain().focus().toggleOrderedList().run()}
-                        active={editor.isActive("orderedList")}
-                        title="Ordered List"
-                    >
-                        1. List
-                    </ToolbarButton>
-                    <div
-                        className="w-px h-4 mx-1"
-                        style={{ backgroundColor: "#3e3e42" }}
-                    />
-                    <ToolbarButton
-                        onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-                        active={editor.isActive("codeBlock")}
-                        title="Code Block"
-                    >
-                        {"</>"}
-                    </ToolbarButton>
-                    <ToolbarButton
-                        onClick={() => editor.chain().focus().toggleCode().run()}
-                        active={editor.isActive("code")}
-                        title="Inline Code"
-                    >
-                        {"`code`"}
-                    </ToolbarButton>
-                    <div
-                        className="w-px h-4 mx-1"
-                        style={{ backgroundColor: "#3e3e42" }}
-                    />
-                    <ToolbarButton
-                        onClick={() => editor.chain().focus().setHorizontalRule().run()}
-                        active={false}
-                        title="Horizontal Rule"
-                    >
-                        ─
-                    </ToolbarButton>
+            {/* File tab */}
+            <div className="flex items-center h-8 shrink-0" style={{ backgroundColor: "#252526", borderBottom: "1px solid #1e1e1e" }}>
+                <div className="flex items-center gap-1.5 px-3 h-full" style={{ backgroundColor: "#1e1e1e", borderRight: "1px solid #252526", borderTop: "1px solid #007acc" }}>
+                    <span className="text-xs" style={{ color: "#cccccc" }}>📄 content.md</span>
                 </div>
-            )}
+                <div className="flex-1" />
+                {!readOnly && (
+                    <span className="text-xs px-3" style={{ color: "#858585" }}>Markdown</span>
+                )}
+            </div>
 
-            {/* Editor content */}
-            <div className="flex-1 overflow-y-auto px-8 py-6 tiptap-editor">
-                <EditorContent editor={editor} />
+            {/* Monaco editor */}
+            <div className="flex-1 min-h-0">
+                <MonacoEditor
+                    height="100%"
+                    language="markdown"
+                    value={markdown}
+                    onChange={readOnly ? undefined : handleChange}
+                    theme="vs-dark"
+                    options={{
+                        readOnly,
+                        minimap: { enabled: false },
+                        fontSize: 14,
+                        lineHeight: 22,
+                        fontFamily: "Consolas, 'Courier New', monospace",
+                        scrollBeyondLastLine: false,
+                        wordWrap: "on",
+                        automaticLayout: true,
+                        tabSize: 2,
+                        renderLineHighlight: "line",
+                        cursorBlinking: "smooth",
+                        smoothScrolling: true,
+                        padding: { top: 16, bottom: 16 },
+                        lineNumbers: "on",
+                        glyphMargin: false,
+                        folding: true,
+                        lineDecorationsWidth: 8,
+                        renderWhitespace: "none",
+                    }}
+                />
+            </div>
+
+            {/* Status bar */}
+            <div className="flex items-center justify-between px-3 h-5 shrink-0 text-xs"
+                style={{ backgroundColor: "#007acc", color: "#fff" }}>
+                <span>Markdown</span>
+                <div className="flex items-center gap-3">
+                    <span>Ln {markdown.split("\n").length}</span>
+                    <span>UTF-8</span>
+                </div>
             </div>
         </div>
     );
