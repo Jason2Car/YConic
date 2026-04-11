@@ -5,45 +5,54 @@ import { NextResponse } from "next/server";
 
 export const maxDuration = 30;
 
+// ─── Input validation schemas ────────────────────────────────────────────────
+
+const ChatMessageSchema = z.object({
+  role: z.enum(["user", "assistant", "system"]),
+  content: z.string().max(10000, "Message too long (max 10,000 chars)"),
+});
+
+const IntroContextSchema = z.object({
+  goals: z.string().max(5000).default(""),
+  baselineSkills: z.array(z.string().max(200)).max(50).default([]),
+  customSkills: z.string().max(2000).default(""),
+  rules: z.string().max(2000).default(""),
+  examples: z.array(z.object({
+    type: z.string().max(50),
+    label: z.string().max(200),
+    value: z.string().max(2000),
+  })).max(20).default([]),
+}).nullable();
+
+const ProjectContextSchema = z.object({
+  title: z.string().max(200).default(""),
+  description: z.string().max(2000).default(""),
+  modules: z.array(z.object({
+    id: z.string().max(100),
+    type: z.string().max(50),
+    title: z.string().max(200),
+    position: z.number().int().min(0).max(100),
+  })).max(50).default([]),
+}).nullable();
+
+const RequestBodySchema = z.object({
+  messages: z.array(ChatMessageSchema).min(1).max(50),
+  introContext: IntroContextSchema.default(null),
+  projectContext: ProjectContextSchema.default(null),
+});
+
 const ProposedChangeSchema = z.object({
   type: z.enum(["add_module", "update_module", "delete_module", "update_project_meta"]),
   description: z.string(),
   payload: z.record(z.unknown()),
 });
 
-interface IntroContext {
-  goals: string;
-  baselineSkills: string[];
-  customSkills: string;
-  rules: string;
-  examples: Array<{ type: string; label: string; value: string }>;
-}
-
-interface ProjectContext {
-  title: string;
-  description: string;
-  modules: Array<{
-    id: string;
-    type: string;
-    title: string;
-    position: number;
-  }>;
-}
-
-interface ChatMsg {
-  role: "user" | "assistant" | "system";
-  content: string;
-}
+// Types inferred from Zod schemas
+type IntroContext = z.infer<typeof IntroContextSchema>;
+type ProjectContext = z.infer<typeof ProjectContextSchema>;
 
 /**
- * Builds the system prompt for the AI assistant based on intro questionnaire
- * data and the current project state. The prompt instructs the AI to act as
- * an Adaptive Learning Architect that proposes structured module changes.
- *
- * @param intro - Intro questionnaire data (goals, skills, rules, examples)
- * @param project - Current project snapshot (title, description, modules)
- * @returns The assembled system prompt string
- */
+ * Builds the system prompt for the AI assistant.
 function buildSystemPrompt(
   intro: IntroContext | null,
   project: ProjectContext | null
@@ -119,17 +128,17 @@ Keep descriptions concise and actionable.`;
 }
 
 export async function POST(req: Request) {
-  const body = await req.json();
-  const {
-    messages,
-    introContext,
-    projectContext,
-  }: {
-    messages: ChatMsg[];
-    introContext: IntroContext | null;
-    projectContext: ProjectContext | null;
-  } = body;
+  // Validate request body
+  let body;
+  try {
+    const raw = await req.json();
+    body = RequestBodySchema.parse(raw);
+  } catch (err) {
+    const message = err instanceof z.ZodError ? err.errors.map((e) => e.message).join(", ") : "Invalid request body";
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
 
+  const { messages, introContext, projectContext } = body;
   const systemPrompt = buildSystemPrompt(introContext, projectContext);
 
   const attempt = async (extraInstruction?: string) => {
