@@ -86,13 +86,47 @@ stateDiagram-v2
 6. The client is redirected to `/recruiter/enrollments/[enrollmentId]/personalize`.
 
 **Personalization Rules (predefined AI system prompt)**:
-- Every source module must appear in the output, either in adapted, fast-tracked, or expanded form — no modules may be silently dropped.
-- If the joinee marked a topic as already known, set `adaptationType: "fast_track"`: condense the module to a brief recap and a self-check quiz rather than removing it, so the knowledge benchmark is still verified.
-- If the joinee has no background in a topic that has prerequisites, insert a `supplemental` module stub before the source module to provide the missing foundation.
-- Adjust `contentDepth` on a three-point scale: `"foundational"`, `"standard"`, or `"advanced"`, based on the joinee's experience level and self-assessment.
-- Swap code module language to the joinee's preferred language if Piston supports it; otherwise retain the source language and add a note.
-- Keep the total number of modules (including supplementals) to no more than 1.5× the source module count.
-- The final module must always be a `"standard"` or `"advanced"` assessment that verifies the same competency benchmark regardless of the joinee's starting level.
+
+The AI operates as an **Adaptive Learning Architect** and executes a four-phase reasoning pipeline before producing output:
+
+**Phase 1 — Profile Analysis**: Classify the joinee's overall readiness (NOVICE / INTERMEDIATE / SENIOR) from years of experience and self-assessment distribution. Identify strongest and weakest domains, note explanation style preference and preferred language.
+
+**Phase 2 — Gap Analysis**: For each source module, cross-reference the joinee's self-assessment against the module's implicit prerequisites to determine whether the module should be adapted, fast-tracked, or preceded by a supplemental.
+
+**Phase 3 — Path Construction**: Arrange the output module sequence respecting the dependency graph, verify the module count cap, and ensure the competency anchor is in place.
+
+**Phase 4 — Content Adaptation**: Generate full adapted content for each module following the adaptation matrix and depth calibration guidelines.
+
+**Hard Constraints** (violations invalidate the output):
+- **HC-1 Full Coverage**: Every source module must map to at least one output spec (standard, fast_track, or advanced). No silent drops.
+- **HC-2 Module Count Cap**: Total output specs ≤ `floor(1.5 × sourceModuleCount)`. If supplementals would exceed the cap, merge the lowest-priority supplementals into condensed notes on their target module.
+- **HC-3 Competency Anchor**: The final output module must be `"standard"` or `"advanced"` and correspond to the last source module — the uniform competency checkpoint.
+- **HC-4 Fast-Track Quiz**: Every `"fast_track"` module must include a `selfCheckQuiz` with 2–5 scenario-based questions testing application, not recall.
+- **HC-5 Supplemental Ordering**: A supplemental's position must be strictly less than the position of the source module it prepares the joinee for.
+- **HC-6 Position Integrity**: Positions must be a zero-indexed contiguous sequence (0, 1, 2, ..., n-1).
+
+**Adaptation Matrix**:
+
+| Self-Assessment | Overall Readiness | → adaptationType | → contentDepth |
+|---|---|---|---|
+| proficient | any | fast_track | (recap only) |
+| partial | NOVICE | standard | foundational |
+| partial | INTERMEDIATE | standard | standard |
+| partial | SENIOR | standard | advanced |
+| none | NOVICE | standard* | foundational |
+| none | INTERMEDIATE | standard* | standard |
+| none | SENIOR | standard | standard |
+
+\* = insert supplemental before this module if it has cross-module dependencies.
+
+**Soft Heuristics** (follow unless overridden by a hard constraint or recruiter note):
+- Swap code module language to the joinee's preference if Piston supports it; otherwise retain the source language with an explanatory note.
+- Align explanation style: `"conceptual_first"` learners get theory → examples; `"example_first"` learners get scenarios → principles.
+- Calibrate depth: `"foundational"` = first principles + analogies; `"standard"` = concise with working vocabulary; `"advanced"` = edge cases + design trade-offs.
+- Supplementals are RICH_TEXT or INTERACTIVE_VISUAL only, ≤ 500 words, ending with a bridge sentence.
+- Tailor examples to the joinee's role context (team, responsibilities) when available.
+
+**Edge Cases**: All-proficient profiles keep the Welcome module at standard depth; all-none profiles add supplementals only where genuine cross-module dependencies exist; single-module projects adapt in-place with no supplementals.
 
 ---
 
