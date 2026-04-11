@@ -8,6 +8,22 @@ Implement the Onboarding Project Builder as a full-stack Next.js 14 application 
 
 ---
 
+## Hackathon MVP Scope (~8 hours)
+
+The five-sprint plan below represents the full ~90-hour implementation. For the single-day hackathon, the following reduced scope is achievable by three developers:
+
+| Time | Focus | Owner(s) | Deliverable |
+|---|---|---|---|
+| Hour 0–2 | Foundation | Jason + Prem | Prisma schema, project CRUD API, dashboard UI with create/delete |
+| Hour 2–4 | AI + Workspace | Jason + Aarush | Intro questionnaire, AI seed generation (`generateObject`), Edit workspace shell |
+| Hour 4–6 | Module Editors | Aarush + Jason | Tiptap rich text, Monaco code editor, Mermaid visual + ChatPanel with AI chat |
+| Hour 6–7 | Joinee + Publish | Prem | Publish flow with slug generation, `/p/[slug]` Joinee view, localStorage progress |
+| Hour 7–8 | Integration | All three | End-to-end wiring, demo project seeding, smoke test of full flow |
+
+**Explicitly deferred to post-hackathon**: NextAuth authentication, property tests P1–P8, undo UI (RevisionHistoryBar), auto-save retry UI, Mermaid annotation interactivity, Sprint 5 error handling polish.
+
+---
+
 ## Sprint 1 — Foundation (Weeks 1–2)
 
 - [ ] 1. Scaffold Next.js 14 project with core tooling
@@ -376,6 +392,12 @@ Implement the Onboarding Project Builder as a full-stack Next.js 14 application 
     - Clicking "Reveal Hint" renders the hint text inline; clicking "Reveal Solution" replaces the editor content with the solution code
     - _Requirements: 5.7_
 
+  - [ ] 24.5 Add demo-mode write protection
+    - Add `X-Demo-Key` header check middleware on all POST/PUT/DELETE routes when `DEMO_MODE=true` env var is set
+    - Pre-populate demo project as read-only when in demo mode
+    - Distribute the demo key only to demo participants to prevent unauthorized modification
+    - _Risk mitigation for unauthorized demo-day modifications_
+
 - [ ] 25. Write integration test suite
   - [ ]* 25.1 Integration test: End-to-end AI session
     - Mock OpenAI API response (using `msw` or Jest module mock) to return a valid `ProposedChange` within 10 seconds
@@ -453,6 +475,8 @@ This is a 4-person team building the project in a single-day hackathon.
 | **Market / Presentation** | Sarah L. | Strategy + demo | Competitive analysis, pricing positioning, demo script, presentation deck, user persona validation |
 
 **Parallelization**: Jason, Aarush, and Prem code in parallel — Jason wires the API layer while Aarush builds the editor UI and Prem builds the Joinee view and dashboard. Sarah prepares the market analysis and presentation concurrently. All three developers integrate at the end for the full end-to-end flow test.
+
+**Integration Checkpoints**: By hour 3, Jason publishes a Postman collection with all API contracts (mocked responses) so Aarush and Prem can build against stable endpoints. By hour 5, all three developers run a quick integration smoke test: create project → fill intro → see modules in editor. Jason owns the final wiring task (hour 7–8).
 
 ## Contingency Plan
 

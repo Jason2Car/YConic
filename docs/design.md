@@ -2,7 +2,11 @@
 
 ## Overview
 
+**Product Thesis**: AI-generated structured onboarding in 30 minutes vs. 15–30 hours manually — with interactive diagrams, sandboxed code exercises, and zero-friction Joinee access that no wiki-based tool can match.
+
 The Onboarding Project Builder is a full-stack web application that enables businesses (Designers — HR leads, team managers, L&D professionals) to create rich, interactive onboarding experiences for new employees (Joinees). Every project passes through three sequential stages: **Init** (scaffold), **Intro** (AI-seeded questionnaire), and **Edit** (iterative module workspace). Designers converse with an AI assistant during the Edit stage to refine structured onboarding projects composed of rich text, interactive visuals (Mermaid diagrams), and embedded code editors. Joinees consume the published projects through a shareable, account-free URL.
+
+**Product Thesis**: AI-generated structured onboarding in 30 minutes vs. 15–30 hours manually — with interactive diagrams, sandboxed code exercises, and zero-friction Joinee access that no wiki-based tool can match.
 
 ### Demo-Day Success Criteria
 
@@ -93,7 +97,11 @@ stateDiagram-v2
 3. Every accepted change is auto-saved within 5 seconds.
 4. When satisfied, the Designer publishes the project.
 
-**Goal-Alignment Scoring**: After each AI-generated change is approved, the system runs a lightweight goal-alignment check — a secondary `generateObject` call that compares the Intro questionnaire goals against the current module set and produces a coverage score (0–100%). The score is displayed in the workspace status bar. If it drops below 70%, the system surfaces specific gap suggestions (e.g., "Your goals mention 'Git workflow' but no module covers version control"). This closes the feedback loop between the Designer's stated intent and the AI's output throughout the Edit stage.
+**Goal-Alignment Scoring**: After each AI-generated change is approved, the system runs a lightweight goal-alignment check — a secondary `generateObject` call that compares the Intro questionnaire goals against the current module set and produces a coverage score (0–100%). The call runs asynchronously after `applyChange` completes — it does not block the approval flow. The score updates in the workspace status bar within 2–3 seconds of approval. The `GoalAlignmentScore` schema is: `z.object({ score: z.number().min(0).max(100), gaps: z.array(z.string()), suggestions: z.array(z.string()) })`. The call uses the same `xai("grok-3-mini")` model with a lightweight prompt containing only module titles/types and the original goals text (~500 tokens total). If the score drops below 70%, the system surfaces specific gap suggestions (e.g., "Your goals mention 'Git workflow' but no module covers version control"). This closes the feedback loop between the Designer's stated intent and the AI's output throughout the Edit stage.
+
+### Mermaid Annotation Implementation
+
+The Mermaid annotation system attaches interactive metadata to specific SVG node IDs. When Mermaid renders a diagram, each node gets a deterministic ID (e.g., `node-A`, `node-B`). The `annotations` array maps `nodeId` to `label` and `detail` strings. On render, the VisualModule component queries the SVG DOM for matching node IDs and attaches `mouseenter`/`mouseleave` event listeners that display a positioned tooltip with the annotation detail. This is non-trivial because Mermaid's SVG output structure varies by diagram type — flowcharts use `<g>` groups with class-based IDs, while sequence diagrams use `<rect>` elements with different naming conventions. The component normalizes both patterns via a `findNodeElement(svg, nodeId)` utility that tries multiple selector strategies before falling back to a text-content match.
 
 ---
 
@@ -544,6 +552,10 @@ The primary alternative a business Designer would use today is Notion — create
 
 After the AI generates or modifies modules, the system runs a lightweight goal-alignment check: it compares the Intro questionnaire goals against the current module set and produces a coverage score (0–100%) indicating how well the modules address the stated onboarding objectives. This is implemented as a second `generateObject` call with a `GoalAlignmentScore` Zod schema (`{ score: number, gaps: string[], suggestions: string[] }`), using the Intro goals and current module titles/types as input. The score is displayed in the workspace status bar, and if it drops below 70%, the system suggests specific modules to add. This mechanism is novel because it closes the loop between the Designer's stated intent (Intro questionnaire) and the AI's output (generated modules), providing a measurable quality signal that no competing tool offers.
 
+### Mermaid Annotation System (Interactive Diagram Metadata)
+
+The Mermaid annotation system attaches interactive metadata to specific SVG node IDs. When Mermaid renders a diagram, each node gets a deterministic ID (e.g., `node-A`, `node-B`). The `annotations` array maps `nodeId` to `label` and `detail` strings. On render, the VisualModule component queries the SVG DOM for matching node IDs and attaches `mouseenter`/`mouseleave` event listeners that display a positioned tooltip with the annotation detail. This is non-trivial because Mermaid's SVG output structure varies by diagram type — flowcharts use `<g>` groups with class-based IDs, while sequence diagrams use `<rect>` elements with different naming conventions. The component normalizes both patterns.
+
 ---
 
 ## `session.applyChange` Transaction Design
@@ -621,6 +633,8 @@ The `$transaction` block ensures that if any step fails (e.g., the module ID doe
 
 **AI Rate Limiting Implementation**: Per-user rate limiting (20 requests/minute) is implemented using Vercel KV (Redis-compatible) with a sliding window counter. Each AI request increments a key `ratelimit:ai:{userId}` with a 60-second TTL. If the count exceeds 20, the route returns 429 with a `Retry-After` header. For the demo environment (no Vercel KV), an in-memory `Map<string, { count: number; resetAt: number }>` provides the same behavior without external dependencies.
 
+**Vercel Cold Starts**: For demo-day with ~20 concurrent users, serverless cold starts on AI routes could add 1–2 seconds to the first request. Mitigation: (1) pre-warm the AI routes by hitting them once before the demo starts, (2) use Vercel's `maxDuration: 30` to keep functions warm during the demo window, (3) for production, deploy AI routes as Vercel Edge Functions which have near-zero cold start times.
+
 ---
 
 ## Module Type Extensibility
@@ -637,6 +651,24 @@ This pattern means the database schema never needs to change for new module type
 
 The current system has no public API for third-party integrations. For a business-facing tool, this is a meaningful gap. The planned roadmap includes: (1) a REST API for programmatic project creation (e.g., an HRIS triggers onboarding project creation when a new hire is added), (2) a Notion/Confluence import endpoint that converts existing wiki pages into Module objects, (3) a webhook on publish that notifies external systems (Slack, email, HRIS) when a project goes live, and (4) an embeddable Joinee widget (`<iframe>` or Web Component) for embedding onboarding experiences in existing intranets. These are post-MVP features but the architecture supports them — the REST route handler pattern makes adding new endpoints straightforward, and the Zod validation layer provides the input safety boundary. For server-to-server calls (HRIS triggers, CI/CD pipelines), the planned authentication strategy is API key-based: a `Designer.apiKey` field (hashed, rotatable) checked via middleware that validates the `Authorization: Bearer <key>` header, bypassing the session-based auth flow entirely.
 
+**Example HRIS Integration Endpoint Contract**:
+
+```
+POST /api/v1/projects
+Authorization: Bearer <api_key>
+Content-Type: application/json
+
+{
+  "title": "Engineering Onboarding Q2 2026",
+  "description": "New hire onboarding for the platform team",
+  "triggerSource": "workday",
+  "triggerRef": "WD-2026-04-NEW-HIRE-1234"
+}
+
+Response: 201 Created
+{ "id": "clx...", "slug": null, "editUrl": "/builder/clx.../intro" }
+```
+
 ---
 
 ## Risk Register
@@ -650,6 +682,7 @@ The current system has no public API for third-party integrations. For a busines
 | **Vercel function timeout** conflicts with 15s Piston timeout | Low | Medium | Set `maxDuration: 30` on execute route; `AbortController` at 15s is well within Vercel's 30s limit | Timeout message displayed to Joinee |
 | **Demo-day degraded mode** (AI + Piston both down) | Low | High | Pre-populate a demo project with all three module types before the demo | The entire editor UI, preview, publish flow, and Joinee view work without AI or Piston — only AI chat and code execution are affected |
 | **Neon database unavailable** during demo | Low | Critical | Neon has 99.95% uptime SLA; use Neon's connection retry with exponential backoff | Static demo mode: serve a hardcoded project from `src/lib/mock/demoProject.ts` when DB is unreachable; dashboard shows the demo project, edit workspace loads from local state, Joinee view renders from static data |
+| **Unauthorized project modification during live demo** (no auth) | Medium | Medium | Add a simple `X-Demo-Key` header check on all write endpoints; distribute the key only to demo participants | Pre-populate the demo project as read-only; disable the "New Project" button in demo mode via `DEMO_MODE=true` env var |
 
 **Back-of-envelope AI cost estimate for demo day**: Each `generateObject` call sends ~2,000 tokens of system prompt + ~500 tokens of conversation history + ~1,500 tokens of ProjectSnapshot context = ~4,000 input tokens. The response averages ~800 tokens. At xAI Grok pricing (~$5/M input, ~$15/M output), each AI call costs ~$0.03. A typical demo session involves 5–10 AI calls = $0.15–$0.30 per demo. With 20 concurrent demo users, total cost is ~$3–$6 for the entire demo period. A $25 spending cap provides ample headroom with a 4x safety margin.
 
@@ -738,6 +771,24 @@ Tag format: // Feature: onboarding-project-builder, Property {N}: {property_text
 - **Piston availability**: verify the Piston API endpoint responds to a health check
 - **Preview panel renders**: verify the builder workspace loads with both chat and preview panels visible
 - **Responsive visuals**: verify Mermaid diagrams render at 375px (mobile) and 1280px (desktop) viewports
+
+---
+
+## Hackathon MVP Scope (~8 hours)
+
+The five-sprint plan above represents the full ~90-hour implementation across multiple weeks. For the single-day hackathon, the following reduced scope is achievable by three developers in ~8 hours:
+
+| Time | Focus | Owner(s) | Deliverable |
+|---|---|---|---|
+| Hour 0–2 | Foundation | Jason + Prem | Prisma schema, project CRUD API, dashboard UI with create/delete |
+| Hour 2–4 | AI + Workspace | Jason + Aarush | Intro questionnaire, AI seed generation (`generateObject`), Edit workspace shell |
+| Hour 4–6 | Module Editors | Aarush + Jason | Tiptap rich text, Monaco code editor, Mermaid visual + ChatPanel with AI chat |
+| Hour 6–7 | Joinee + Publish | Prem | Publish flow with slug generation, `/p/[slug]` Joinee view, localStorage progress |
+| Hour 7–8 | Integration | All three | End-to-end wiring, demo project seeding, smoke test of full flow |
+
+**Explicitly deferred to post-hackathon**: NextAuth authentication, property tests P1–P8, undo UI (RevisionHistoryBar), auto-save retry UI, Mermaid annotation interactivity (hover/click tooltips), Sprint 5 error handling polish.
+
+**Integration Checkpoints**: By hour 3, Jason publishes a Postman collection with all API contracts (mocked responses) so Aarush and Prem can build against stable endpoints. By hour 5, all three developers run a quick integration smoke test: create project → fill intro → see modules in editor. Jason owns the final wiring task (hour 7–8).
 
 ---
 
