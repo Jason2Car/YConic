@@ -1,4 +1,16 @@
 {
+  "buildCommand": "npx prisma generate && npm run build",
+  "installCommand": "npm ci",
   "framework": "nextjs",
-  "buildCommand": "npx prisma generate && next build"
+  "regions": [
+    "iad1"
+  ],
+  "functions": {
+    "src/app/api/ai/chat/route.ts": {
+      "maxDuration": 30
+    },
+    "src/app/api/execute/route.ts": {
+      "maxDuration": 30
+    }
+  }
 }
