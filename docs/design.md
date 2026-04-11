@@ -4,6 +4,10 @@
 
 The Onboarding Project Builder is a full-stack web application that enables businesses (Designers — HR leads, team managers, L&D professionals) to create rich, interactive onboarding experiences for new employees (Joinees). Every project passes through three sequential stages: **Init** (scaffold), **Intro** (AI-seeded questionnaire), and **Edit** (iterative module workspace). Designers converse with an AI assistant during the Edit stage to refine structured onboarding projects composed of rich text, interactive visuals (Mermaid diagrams), and embedded code editors. Joinees consume the published projects through a shareable, account-free URL.
 
+### Demo-Day Success Criteria
+
+At demo day, a judge should be able to: (1) create a new project from the dashboard, (2) fill out the Intro questionnaire and see AI-generated module stubs appear in under 30 seconds, (3) chat with the AI to add a rich text module, a Mermaid diagram, and a code exercise, approving each change, (4) click Publish and receive a shareable URL, (5) open that URL in an incognito tab (no account) and complete all modules with progress tracking. The entire flow should take under 5 minutes. If AI or Piston are unavailable, the pre-populated demo project demonstrates all three module types, the publish flow, and the Joinee experience without any external dependencies.
+
 ### Tech Stack
 
 | Layer | Technology | Justification |
@@ -146,6 +150,15 @@ The AI can reliably generate Mermaid syntax (it appears in training data extensi
 
 **Decision 4: Structured AI Output via `streamObject`**
 Rather than asking the AI to return free-form text, the AI route uses Vercel AI SDK's `streamObject` with a Zod schema. This ensures the AI always returns a valid `ProposedChange` object (module additions, edits, deletions) that can be directly applied to the project state.
+
+**Decision 5: AI Context Management and Token Budget**
+The Edit-stage system prompt injects the current `ProjectSnapshot` (module IDs, titles, types, and a content summary) into the AI context. As projects grow, the full content of all modules would exceed token limits. The truncation strategy is:
+- **Module metadata is always included**: ID, title, type, and position for all modules (small, fixed-size per module).
+- **Full content is included only for the active module** (the one the Designer is currently editing or referencing).
+- **Other modules include a content summary**: for RICH_TEXT, the first 200 characters of HTML stripped of tags; for CODE_EDITOR, the language and first 5 lines of starterCode; for INTERACTIVE_VISUAL, the visualType and annotation count.
+- **Conversation history is windowed**: only the last 8 messages are sent to the AI, keeping the total prompt under ~4,000 tokens of context even for a 20-module project.
+
+At GPT-4o / Grok-4's 128K context window, this strategy provides ample headroom. The `buildSystemPrompt(modules)` function in `prompts.ts` implements this truncation.
 
 ---
 
@@ -489,9 +502,19 @@ interface JoineeProgress {
 | Three-stage guided creation | Yes — Init → Intro questionnaire → Edit | No structured workflow | Template-based, no AI seeding | No structured workflow | Course builder (manual) |
 | Target audience | Businesses, small teams | General-purpose | SMB HR teams | Enterprise teams | Enterprise L&D |
 
+**Additional competitors not shown**: Loom (video-first onboarding — no structured modules or code exercises), WorkRamp (enterprise LMS — heavy, expensive, no AI generation), Guru (knowledge base — no interactive content or guided creation workflow). These tools serve adjacent needs but none combine AI-generated structured modules, sandboxed code execution, and zero-friction Joinee access in a single product.
+
+### Go-to-Market and Pricing Positioning
+
+The target market is businesses with 20–500 employees that onboard 5–50 new hires per quarter — too small for enterprise LMS tools (WorkRamp at $25K+/year, Lessonly at $15K+/year) but too complex for a shared Google Doc. Pricing would be positioned between Notion ($16/user/mo for the workspace) and Trainual ($250/mo flat): a per-project model at ~$29/mo for unlimited projects and Joinees, or a free tier with 1 published project and a paid tier at $49/mo for teams. The zero-friction Joinee access (no per-seat cost for new hires) is a key pricing differentiator against per-user tools like Trainual and Confluence.
+
 ### Why We Win
 
-The primary alternative a business Designer would use today is Notion — create a page, write content manually, maybe use Notion AI to generate some paragraphs, then share a link. The Onboarding Project Builder produces a better outcome because: (1) the three-stage workflow with AI seeding means the Designer gets a structured first draft in 30 seconds instead of starting from a blank page, (2) the approve/reject loop gives the Designer control over AI output that Notion's inline generation lacks, (3) interactive Mermaid diagrams and sandboxed code exercises are impossible in Notion, and (4) the Joinee experience — with progress tracking, module completion, and no-account access — is purpose-built for onboarding rather than adapted from a general-purpose doc tool.
+The primary alternative a business Designer would use today is Notion — create a page, write content manually, maybe use Notion AI to generate some paragraphs, then share a link. The Onboarding Project Builder produces a better outcome because: (1) the AI makes precise, reviewable edits to individual modules rather than rewriting the whole document — giving the Designer control without sacrificing speed, (2) the three-stage workflow with AI seeding means the Designer gets a structured first draft in 30 seconds instead of starting from a blank page, (3) interactive Mermaid diagrams and sandboxed code exercises are impossible in Notion, and (4) the Joinee experience — with progress tracking, module completion, and no-account access — is purpose-built for onboarding rather than adapted from a general-purpose doc tool.
+
+### Goal-Alignment Scoring (Novel Mechanism)
+
+After the AI generates or modifies modules, the system runs a lightweight goal-alignment check: it compares the Intro questionnaire goals against the current module set and produces a coverage score (0–100%) indicating how well the modules address the stated onboarding objectives. This is implemented as a second `generateObject` call with a `GoalAlignmentScore` Zod schema (`{ score: number, gaps: string[], suggestions: string[] }`), using the Intro goals and current module titles/types as input. The score is displayed in the workspace status bar, and if it drops below 70%, the system suggests specific modules to add. This mechanism is novel because it closes the loop between the Designer's stated intent (Intro questionnaire) and the AI's output (generated modules), providing a measurable quality signal that no competing tool offers.
 
 ---
 
@@ -568,6 +591,8 @@ The `$transaction` block ensures that if any step fails (e.g., the module ID doe
 
 **Neon Connection Pooling**: The Neon serverless adapter (`@neondatabase/serverless`) uses WebSocket-based connections with built-in PgBouncer pooling. At 10x expected load, Neon auto-scales compute and the pooler handles connection multiplexing transparently.
 
+**AI Rate Limiting Implementation**: Per-user rate limiting (20 requests/minute) is implemented using Vercel KV (Redis-compatible) with a sliding window counter. Each AI request increments a key `ratelimit:ai:{userId}` with a 60-second TTL. If the count exceeds 20, the route returns 429 with a `Retry-After` header. For the demo environment (no Vercel KV), an in-memory `Map<string, { count: number; resetAt: number }>` provides the same behavior without external dependencies.
+
 ---
 
 ## Module Type Extensibility
@@ -579,6 +604,10 @@ The module type system is currently a closed set (`RICH_TEXT | INTERACTIVE_VISUA
 3. To add a new type: (a) define a new `TypeContent` interface in `src/lib/types.ts`, (b) add a new editor component in `src/components/modules/`, (c) add a new preview component in `src/components/preview/`, (d) extend `buildSystemPrompt()` with the new type's field rules, (e) extend the `ChangeSchema` Zod schema.
 
 This pattern means the database schema never needs to change for new module types — only TypeScript code and UI components.
+
+### Future: Third-Party Integration API (Roadmap)
+
+The current system has no public API for third-party integrations. For a business-facing tool, this is a meaningful gap. The planned roadmap includes: (1) a REST API for programmatic project creation (e.g., an HRIS triggers onboarding project creation when a new hire is added), (2) a Notion/Confluence import endpoint that converts existing wiki pages into Module objects, (3) a webhook on publish that notifies external systems (Slack, email, HRIS) when a project goes live, and (4) an embeddable Joinee widget (`<iframe>` or Web Component) for embedding onboarding experiences in existing intranets. These are post-MVP features but the architecture supports them — the tRPC router pattern makes adding new procedures straightforward, and the `publicProcedure` / `protectedProcedure` split already provides the auth boundary.
 
 ---
 
@@ -592,6 +621,8 @@ This pattern means the database schema never needs to change for new module type
 | **Monaco/Mermaid SSR crash** in Next.js | Medium | Medium | Lazy-load both with `next/dynamic({ ssr: false })`; already implemented | Show fallback skeleton; raw Mermaid syntax displayed as code block |
 | **Vercel function timeout** conflicts with 15s Piston timeout | Low | Medium | Set `maxDuration: 30` on execute route; `AbortController` at 15s is well within Vercel's 30s limit | Timeout message displayed to Joinee |
 | **Demo-day degraded mode** (AI + Piston both down) | Low | High | Pre-populate a demo project with all three module types before the demo | The entire editor UI, preview, publish flow, and Joinee view work without AI or Piston — only AI chat and code execution are affected |
+
+**Back-of-envelope AI cost estimate for demo day**: Each `generateObject` call sends ~2,000 tokens of system prompt + ~500 tokens of conversation history + ~1,500 tokens of ProjectSnapshot context = ~4,000 input tokens. The response averages ~800 tokens. At xAI Grok pricing (~$5/M input, ~$15/M output), each AI call costs ~$0.03. A typical demo session involves 5–10 AI calls = $0.15–$0.30 per demo. With 20 concurrent demo users, total cost is ~$3–$6 for the entire demo period. A $25 spending cap provides ample headroom with a 4x safety margin.
 
 ---
 

@@ -444,10 +444,12 @@ Implement the Onboarding Project Builder as a full-stack Next.js 14 application 
 
 | Role | Owner | Sprints | Responsibilities |
 |---|---|---|---|
-| **AI / Backend Lead** | TBD | S1–S2 | Prisma schema, tRPC routers, AI chat route (`streamObject` + Zod), session.applyChange transaction, auto-save logic |
-| **Frontend / Editor Lead** | TBD | S2–S3 | Builder workspace (split-pane, ChatPanel, PreviewPanel), Tiptap/Monaco/Mermaid module editors, approve/reject UI |
-| **Joinee / Publishing Lead** | TBD | S3–S4 | Publish flow, `/p/[slug]` Joinee view, localStorage progress, ProgressBar, ModuleList, code execution proxy |
-| **QA / Testing Lead** | TBD | S4–S5 | Property tests (P1–P10), integration tests, Playwright smoke tests, accessibility audit, performance review |
+| **AI / Backend Lead** | Jason C. | S1–S2 | Prisma schema, tRPC routers, AI chat route (`streamObject` + Zod), session.applyChange transaction, auto-save logic |
+| **Frontend / Editor Lead** | Jason C. | S2–S3 | Builder workspace (split-pane, ChatPanel, PreviewPanel), Tiptap/Monaco/Mermaid module editors, approve/reject UI |
+| **Joinee / Publishing Lead** | Jason C. | S3–S4 | Publish flow, `/p/[slug]` Joinee view, localStorage progress, ProgressBar, ModuleList, code execution proxy |
+| **QA / Testing Lead** | Jason C. | S4–S5 | Property tests (P1–P10), integration tests, Playwright smoke tests, accessibility audit, performance review |
+
+Note: This is a solo-developer project. Jason owns all four roles sequentially across sprints, which is why the sprint assignments are staggered rather than parallel. The parallelization opportunities below apply if additional team members join.
 
 **Parallelization opportunities**: In Sprint 2, the AI/Backend Lead can implement the `/api/ai/chat` route and session procedures while the Frontend Lead builds the workspace shell and ChatPanel UI. In Sprint 3, the Frontend Lead can implement module editors while the Joinee Lead starts the code execution proxy and Piston client.
 

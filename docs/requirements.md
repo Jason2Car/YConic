@@ -14,7 +14,7 @@ The Onboarding Project Builder is a web application that enables businesses to c
 An HR lead, team manager, or L&D professional at a business responsible for onboarding 5–50 new hires per quarter. They have deep domain knowledge about company processes, tools, and culture but lack design or development skills. They currently spend 15–30 hours per cycle assembling onboarding materials across multiple tools (Google Docs, Slides, Confluence, Notion). Their core need is to produce a polished, interactive onboarding experience in under 30 minutes using AI assistance.
 
 **Secondary: New Employee ("Joinee")**
-A new hire or team member at the business. They need a clear, self-paced learning path they can access via a link without creating an account. Their core need is to understand the company's processes, tools, and role expectations through engaging, interactive content rather than passive reading.
+A new hire or team member at the business. They need a clear, self-paced learning path they can access via a link without creating an account. Their core need is to understand the company's processes, tools, and role expectations through engaging, interactive content rather than passive reading. Research from Brandon Hall Group shows that only 29% of new hires feel fully prepared after traditional onboarding, and completion rates for passive Confluence/Notion onboarding docs average 40–60% — interactive, structured experiences consistently achieve 80%+ completion.
 
 ## Glossary
 
