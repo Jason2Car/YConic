@@ -9,6 +9,7 @@ interface EditorStore {
     sidebarView: SidebarView;
     sidebarOpen: boolean;
     saveStatus: SaveStatus;
+    previewMode: boolean;
     // actions
     setActiveModule: (id: string) => void;
     openTab: (id: string) => void;
@@ -16,6 +17,7 @@ interface EditorStore {
     setSidebarView: (view: SidebarView) => void;
     toggleSidebar: () => void;
     setSaveStatus: (status: SaveStatus) => void;
+    togglePreview: () => void;
 }
 
 export const useEditorStore = create<EditorStore>((set, get) => ({
@@ -24,6 +26,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     sidebarView: "modules",
     sidebarOpen: true,
     saveStatus: "saved",
+    previewMode: false,
 
     setActiveModule: (id: string) => {
         const { openTabIds } = get();
@@ -75,5 +78,9 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
 
     setSaveStatus: (status: SaveStatus) => {
         set({ saveStatus: status });
+    },
+
+    togglePreview: () => {
+        set((state) => ({ previewMode: !state.previewMode }));
     },
 }));

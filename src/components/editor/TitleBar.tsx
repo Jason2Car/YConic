@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useEditorStore } from "@/lib/store/editorStore";
-import { useRouter } from "next/navigation";
 import type { Project } from "@/lib/mock/project";
 
 interface TitleBarProps {
@@ -10,7 +9,7 @@ interface TitleBarProps {
 }
 
 export function TitleBar({ project }: TitleBarProps) {
-    const { saveStatus } = useEditorStore();
+    const { saveStatus, previewMode, togglePreview } = useEditorStore();
     const [isEditingTitle, setIsEditingTitle] = useState(false);
     const [title, setTitle] = useState(project.title);
 
@@ -19,72 +18,62 @@ export function TitleBar({ project }: TitleBarProps) {
         saving: { color: "bg-yellow-500 animate-pulse", label: "Saving..." },
         error: { color: "bg-red-500", label: "Save error" },
     };
-
     const statusConfig = saveStatusConfig[saveStatus];
 
     return (
-        <div
-            className="flex items-center justify-between px-4 h-9 shrink-0"
-            style={{ backgroundColor: "#323233", borderBottom: "1px solid #3e3e42" }}
-        >
-            {/* Left: App name */}
+        <div className="flex items-center justify-between px-4 h-9 shrink-0"
+            style={{ backgroundColor: "#323233", borderBottom: "1px solid #3e3e42" }}>
+            {/* Left */}
             <div className="flex items-center gap-2 text-xs text-[#858585]">
                 <span className="font-medium text-[#cccccc]">Onboarding Builder</span>
                 <span>/</span>
             </div>
 
-            {/* Center: Project title */}
+            {/* Center */}
             <div className="flex items-center gap-2">
                 {isEditingTitle ? (
-                    <input
-                        autoFocus
-                        value={title}
+                    <input autoFocus value={title}
                         onChange={(e) => setTitle(e.target.value)}
                         onBlur={() => setIsEditingTitle(false)}
-                        onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === "Escape") {
-                                setIsEditingTitle(false);
-                            }
-                        }}
-                        className="bg-[#3c3c3c] border border-[#007acc] rounded px-2 py-0.5 text-sm text-[#cccccc] outline-none min-w-[200px] text-center"
-                    />
+                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === "Escape") setIsEditingTitle(false); }}
+                        className="bg-[#3c3c3c] border border-[#007acc] rounded px-2 py-0.5 text-sm text-[#cccccc] outline-none min-w-[200px] text-center" />
                 ) : (
-                    <button
-                        onClick={() => setIsEditingTitle(true)}
+                    <button onClick={() => setIsEditingTitle(true)}
                         className="text-sm font-medium text-[#cccccc] hover:text-white px-2 py-0.5 rounded hover:bg-[#2a2d2e] transition-colors"
-                        title="Click to edit project title"
-                    >
+                        title="Click to edit project title">
                         {title}
                     </button>
                 )}
-
-                {/* Save status indicator */}
                 <div className="flex items-center gap-1.5" title={statusConfig.label}>
                     <div className={`w-2 h-2 rounded-full ${statusConfig.color}`} />
                     <span className="text-xs text-[#858585]">{statusConfig.label}</span>
                 </div>
             </div>
 
-            {/* Right: Actions */}
+            {/* Right */}
             <div className="flex items-center gap-2">
-                <button
-                    onClick={() => window.open(`/builder/${project.id}/preview`, '_blank')}
-                    className="text-xs px-3 py-1 rounded text-[#cccccc] hover:bg-[#2a2d2e] transition-colors border border-[#3e3e42]"
-                    title="Preview published view"
-                >
-                    Preview
+                {/* Preview toggle */}
+                <button onClick={togglePreview}
+                    className="text-xs px-3 py-1 rounded transition-colors"
+                    style={{
+                        backgroundColor: previewMode ? "#007acc" : "transparent",
+                        color: previewMode ? "#ffffff" : "#cccccc",
+                        border: previewMode ? "1px solid #007acc" : "1px solid #3e3e42",
+                    }}
+                    title={previewMode ? "Back to editor" : "Preview onboarding page"}>
+                    {previewMode ? "← Editor" : "Preview"}
                 </button>
-                <button
-                    className="text-xs px-3 py-1 rounded font-medium text-white transition-colors"
+                {/* Open in new tab */}
+                <button onClick={() => window.open(`/builder/${project.id}/preview`, '_blank')}
+                    className="text-xs px-3 py-1 rounded text-[#cccccc] hover:bg-[#2a2d2e] transition-colors border border-[#3e3e42]"
+                    title="Open preview in new tab">
+                    ↗
+                </button>
+                <button className="text-xs px-3 py-1 rounded font-medium text-white transition-colors"
                     style={{ backgroundColor: "#007acc" }}
-                    onMouseEnter={(e) =>
-                        (e.currentTarget.style.backgroundColor = "#1a8ad4")
-                    }
-                    onMouseLeave={(e) =>
-                        (e.currentTarget.style.backgroundColor = "#007acc")
-                    }
-                    title="Publish project"
-                >
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#1a8ad4")}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#007acc")}
+                    title="Publish project">
                     Publish
                 </button>
             </div>
