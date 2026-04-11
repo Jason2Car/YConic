@@ -108,7 +108,7 @@ Implement the Onboarding Project Builder as a full-stack Next.js 14 application 
     - On questionnaire submit: POST to `/api/ai/intro`, receive `SeedLayout`, call `module.add` for each stub (content: null), call `project.update` to set `stage: "edit"`, then redirect to edit page
     - _Requirements: 0.4, 0.5, 0.6, 0.8, 0.9_
 
-- [ ] 8. Build Builder workspace layout (Edit stage)
+- [-] 8. Build Builder workspace layout (Edit stage)
   - [ ] 8.1 Create split-pane workspace shell
     - Create `src/app/builder/[projectId]/edit/page.tsx` — server component that validates `stage === "edit"` (redirects to intro if not), loads project + modules, renders the workspace
     - Build a resizable split-pane layout (CSS Grid or `react-resizable-panels`) with `ChatPanel` on the left and `PreviewPanel` on the right
