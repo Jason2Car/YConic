@@ -72,7 +72,9 @@ export const useBuilderStore = create<BuilderState>((set, get) => ({
         type: payload.type ?? "RICH_TEXT",
         title: payload.title ?? "New Module",
         position: project.modules.length,
-        content: payload.content ?? null,
+        content: payload.content ?? { type: "RICH_TEXT", html: "" },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       };
       updated = { ...project, modules: [...project.modules, newModule] };
     } else if (change.type === "update_module") {

@@ -1,8 +1,19 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import dynamic from "next/dynamic";
 import type { CodeEditorContent } from "@/lib/types";
+
+// Configure Monaco loader to use CDN explicitly
+if (typeof window !== "undefined") {
+    import("@monaco-editor/loader").then((loader) => {
+        loader.default.config({
+            paths: {
+                vs: "https://cdn.jsdelivr.net/npm/monaco-editor@0.50.0/min/vs",
+            },
+        });
+    });
+}
 
 // Lazy load Monaco to avoid SSR issues
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {

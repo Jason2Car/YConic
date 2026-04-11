@@ -62,3 +62,48 @@ export interface JoineeProgress {
     completedModuleIds: string[];
     lastVisited: string;
 }
+
+// ─── Intro Questionnaire ─────────────────────────────────────────────────────
+
+export interface ExampleReference {
+    id: string;
+    type: "url" | "text";
+    label: string;
+    value: string;
+}
+
+export interface IntroFormData {
+    goals: string;
+    baselineSkills: string[];
+    customSkills: string;
+    rules: string;
+    examples: ExampleReference[];
+}
+
+// ─── AI / Session ────────────────────────────────────────────────────────────
+
+export type ProposedChangeType =
+    | "add_module"
+    | "update_module"
+    | "delete_module"
+    | "update_project_meta";
+
+export interface ProposedChange {
+    type: ProposedChangeType;
+    description: string;
+    payload: unknown;
+}
+
+export interface ChatMessage {
+    id: string;
+    role: "user" | "assistant";
+    content: string;
+    proposedChange?: ProposedChange;
+    status?: "pending" | "approved" | "rejected";
+}
+
+export interface RevisionEntry {
+    timestamp: string;
+    changeDescription: string;
+    snapshotBefore: Project;
+}

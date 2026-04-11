@@ -33,7 +33,7 @@ export default async function PublicProjectPage({ params }: PageProps) {
         ...project,
         createdAt: project.createdAt.toISOString(),
         updatedAt: project.updatedAt.toISOString(),
-        modules: project.modules.map((m) => ({
+        modules: project.modules.map((m: any) => ({
             ...m,
             createdAt: m.createdAt.toISOString(),
             updatedAt: m.updatedAt.toISOString(),

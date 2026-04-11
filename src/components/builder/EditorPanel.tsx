@@ -57,7 +57,6 @@ export function EditorPanel() {
             )}
             {activeModule.type === "INTERACTIVE_VISUAL" && (
               <VisualModule
-                moduleId={activeModule.id}
                 content={
                   (activeModule.content as InteractiveVisualContent) ?? {
                     type: "INTERACTIVE_VISUAL",
@@ -70,7 +69,6 @@ export function EditorPanel() {
             )}
             {activeModule.type === "CODE_EDITOR" && (
               <CodeEditorModule
-                moduleId={activeModule.id}
                 content={
                   (activeModule.content as CodeEditorContent) ?? {
                     type: "CODE_EDITOR",

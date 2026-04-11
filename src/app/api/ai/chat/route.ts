@@ -1,5 +1,5 @@
 import { xai } from "@ai-sdk/xai";
-import { streamText, type CoreMessage } from "ai";
+import { streamText } from "ai";
 
 export const maxDuration = 30;
 
@@ -20,6 +20,11 @@ interface ProjectContext {
     title: string;
     position: number;
   }>;
+}
+
+interface ChatMsg {
+  role: "user" | "assistant" | "system";
+  content: string;
 }
 
 function buildSystemPrompt(
@@ -62,13 +67,24 @@ Keep responses concise and actionable. When proposing changes, explain what you'
   if (intro) {
     prompt += `\n\n--- ONBOARDING PROJECT CONTEXT ---`;
     prompt += `\nThe designer filled out an intake questionnaire. Use this to tailor all content you generate:\n`;
-    if (intro.goals) prompt += `\nLEARNING GOALS:\n${intro.goals}`;
-    if (intro.baselineSkills.length > 0) prompt += `\n\nBASELINE SKILLS:\n- ${intro.baselineSkills.join("\n- ")}`;
-    if (intro.customSkills) prompt += `\n\nADDITIONAL SKILL NOTES:\n${intro.customSkills}`;
-    if (intro.rules) prompt += `\n\nRULES & STYLE GUIDE:\n${intro.rules}`;
+
+    if (intro.goals) {
+      prompt += `\nLEARNING GOALS:\n${intro.goals}`;
+    }
+    if (intro.baselineSkills.length > 0) {
+      prompt += `\n\nBASELINE SKILLS (assumed prior knowledge):\n- ${intro.baselineSkills.join("\n- ")}`;
+    }
+    if (intro.customSkills) {
+      prompt += `\n\nADDITIONAL SKILL NOTES:\n${intro.customSkills}`;
+    }
+    if (intro.rules) {
+      prompt += `\n\nRULES & STYLE GUIDE:\n${intro.rules}`;
+    }
     if (intro.examples.length > 0) {
       prompt += `\n\nREFERENCE MATERIALS:`;
-      for (const ex of intro.examples) prompt += `\n- [${ex.type.toUpperCase()}] ${ex.label}: ${ex.value}`;
+      for (const ex of intro.examples) {
+        prompt += `\n- [${ex.type.toUpperCase()}] ${ex.label}: ${ex.value}`;
+      }
     }
     prompt += `\n--- END CONTEXT ---`;
   }
@@ -78,7 +94,9 @@ Keep responses concise and actionable. When proposing changes, explain what you'
     if (project.description) prompt += `\nDescription: ${project.description}`;
     if (project.modules.length > 0) {
       prompt += `\nExisting modules (${project.modules.length}):`;
-      for (const m of project.modules) prompt += `\n  ${m.position + 1}. [${m.type}] "${m.title}" (id: ${m.id})`;
+      for (const m of project.modules) {
+        prompt += `\n  ${m.position + 1}. [${m.type}] "${m.title}" (id: ${m.id})`;
+      }
     } else {
       prompt += `\nNo modules yet.`;
     }
@@ -94,7 +112,7 @@ export async function POST(req: Request) {
     introContext,
     projectContext,
   }: {
-    messages: CoreMessage[];
+    messages: ChatMsg[];
     introContext: IntroContext | null;
     projectContext: ProjectContext | null;
   } = body;
@@ -103,17 +121,22 @@ export async function POST(req: Request) {
 
   try {
     const result = await streamText({
-      model: xai("grok-4"),
+      model: xai("grok-3-mini"),
       system: systemPrompt,
-      messages,
+      messages: messages.map((m) => ({ role: m.role, content: m.content })),
     });
 
     return result.toTextStreamResponse();
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "AI service unavailable";
-    return new Response(
-      JSON.stringify({ error: message }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
-    );
+    const status =
+      err && typeof err === "object" && "statusCode" in err
+        ? (err as { statusCode: number }).statusCode
+        : 500;
+
+    return new Response(JSON.stringify({ error: message }), {
+      status,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 }

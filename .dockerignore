@@ -1,0 +1,12 @@
+node_modules
+.next
+.git
+.claude
+.kiro
+.vscode
+onboarding-builder
+*.md
+!README.md
+.env*.local
+.env
+.DS_Store

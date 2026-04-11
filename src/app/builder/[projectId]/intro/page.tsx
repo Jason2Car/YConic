@@ -96,6 +96,8 @@ Generate all modules now as separate JSON blocks.`;
                   title: parsed.payload.title || `Module ${position + 1}`,
                   position,
                   content: parsed.payload.content || { type: "RICH_TEXT", html: "<p>Content pending</p>" },
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
                 };
                 modules.push(mod);
                 position++;
@@ -110,6 +112,7 @@ Generate all modules now as separate JSON blocks.`;
       // Fallback: if AI didn't return valid modules, use smart defaults based on the form
       if (modules.length === 0) {
         setStatus("Creating default modules...");
+        const now = new Date().toISOString();
         modules = [
           {
             id: `mod_${Date.now()}_0`,
@@ -121,6 +124,8 @@ Generate all modules now as separate JSON blocks.`;
               type: "RICH_TEXT",
               html: `<h2>Welcome to the team! 🎉</h2><p>${data.goals || "This onboarding will guide you through everything you need to know."}</p><h3>What You'll Learn</h3><p>This project covers the key skills and knowledge you need to get started. Work through each module at your own pace.</p>`,
             },
+            createdAt: now,
+            updatedAt: now,
           },
           {
             id: `mod_${Date.now()}_1`,
@@ -134,6 +139,8 @@ Generate all modules now as separate JSON blocks.`;
               mermaidDefinition: "flowchart TD\n    A([🚀 Start]) --> B[Learn the Basics]\n    B --> C[Hands-on Practice]\n    C --> D{Ready?}\n    D -->|Yes| E([✅ Complete])\n    D -->|No| B\n    style A fill:#007acc,color:#fff\n    style E fill:#28a745,color:#fff",
               annotations: [],
             },
+            createdAt: now,
+            updatedAt: now,
           },
           {
             id: `mod_${Date.now()}_2`,
@@ -148,6 +155,8 @@ Generate all modules now as separate JSON blocks.`;
               hint: "Use template literals: `Hello, ${name}!`",
               solution: "function greet(name: string): string {\n  return `Hello, ${name}! Welcome to the team!`;\n}\n\nconsole.log(greet('New Team Member'));",
             },
+            createdAt: now,
+            updatedAt: now,
           },
         ];
       }
@@ -174,6 +183,8 @@ Generate all modules now as separate JSON blocks.`;
             title: "Welcome & Overview",
             position: 0,
             content: { type: "RICH_TEXT", html: "<h2>Welcome!</h2><p>Start building your onboarding content using the AI chat.</p>" },
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
           },
         ],
       });
