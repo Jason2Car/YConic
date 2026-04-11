@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Onboarding Project Builder is a full-stack web application that enables student organization leaders (Designers) to create rich, interactive onboarding experiences for new members (Joinees). Every project passes through three sequential stages: **Init** (scaffold), **Intro** (AI-seeded questionnaire), and **Edit** (iterative module workspace). Designers converse with an AI assistant during the Edit stage to refine structured onboarding projects composed of rich text, interactive visuals (Mermaid diagrams), and embedded code editors. Joinees consume the published projects through a shareable, account-free URL.
+The Onboarding Project Builder is a full-stack web application that enables businesses (Designers — HR leads, team managers, L&D professionals) to create rich, interactive onboarding experiences for new employees (Joinees). Every project passes through three sequential stages: **Init** (scaffold), **Intro** (AI-seeded questionnaire), and **Edit** (iterative module workspace). Designers converse with an AI assistant during the Edit stage to refine structured onboarding projects composed of rich text, interactive visuals (Mermaid diagrams), and embedded code editors. Joinees consume the published projects through a shareable, account-free URL.
 
 ### Tech Stack
 
@@ -59,10 +59,10 @@ stateDiagram-v2
 
 **What happens**:
 1. The `IntroQuestionnaire` component renders three sections:
-   - **Goals** — free-text: "What should a new joinee know or be able to do after completing this?"
+   - **Goals** — free-text: "What should a new employee know or be able to do after completing this?"
    - **Baseline Requirements** — checklist + free-text: "What prior knowledge can you assume?"
    - **Examples** — file upload or URL paste: "Share any existing docs, slides, or references."
-2. On submit, the answers are sent to `POST /api/ai/intro` along with a predefined system prompt (the "Intro Rules") that instructs the AI on how to structure a learning module for student orgs.
+2. On submit, the answers are sent to `POST /api/ai/intro` along with a predefined system prompt (the "Intro Rules") that instructs the AI on how to structure a learning module for business onboarding.
 3. The AI returns a `SeedLayout` — an ordered list of module stubs (type + title + brief description) — within 15 seconds.
 4. The stubs are written to the database as `Module` rows with `content: null` (placeholders).
 5. The project `stage` is updated to `"edit"`.
@@ -136,7 +136,7 @@ graph TB
 ### Key Architectural Decisions
 
 **Decision 1: Monolithic Next.js vs. Separate Backend**
-A single Next.js app is chosen over a separate Express/Fastify backend. This reduces operational complexity for a student-org tool, keeps deployment simple (single Vercel project), and allows tRPC to share types without a separate package.
+A single Next.js app is chosen over a separate Express/Fastify backend. This reduces operational complexity for a business onboarding tool, keeps deployment simple (single Vercel project), and allows tRPC to share types without a separate package.
 
 **Decision 2: Piston API for Code Execution**
 Piston runs each submission in an isolated container with resource limits, satisfying the sandboxing requirement. The 15-second timeout is enforced at the proxy layer (`/api/execute`) before forwarding to Piston, giving us control independent of Piston's own limits.
@@ -474,6 +474,124 @@ interface JoineeProgress {
 *For any* set of modules marked complete by a Joinee, the completion state written to localStorage should be fully recoverable after a page refresh — no completed modules should be lost or incorrectly added.
 
 **Validates: Requirements 6.4**
+
+---
+
+## Competitive Landscape
+
+| Dimension | Onboarding Project Builder | Notion AI | Trainual | Confluence | Codecademy for Business |
+|---|---|---|---|---|---|
+| AI-generated structured modules | Yes — AI produces typed, Zod-validated module objects (not free-form text) | Partial — inline AI text generation, no structured output | No AI generation | No AI generation | No AI generation |
+| Approve/reject AI loop with undo | Yes — Designer reviews each change before it's applied; snapshot-based undo | No — AI writes inline, no approval step | N/A | N/A | N/A |
+| Embedded code execution | Yes — Monaco Editor + Piston sandboxed execution (Python/JS/TS) | No | No | No | Yes — but only within Codecademy's platform |
+| Interactive diagrams | Yes — Mermaid.js with hover/click annotations, AI-generated | No (static images only) | No | Partial (draw.io embed, not AI-generated) | No |
+| Account-free Joinee access | Yes — shareable URL, no sign-up required | Requires workspace access | Requires account | Requires account | Requires account |
+| Three-stage guided creation | Yes — Init → Intro questionnaire → Edit | No structured workflow | Template-based, no AI seeding | No structured workflow | Course builder (manual) |
+| Target audience | Businesses, small teams | General-purpose | SMB HR teams | Enterprise teams | Enterprise L&D |
+
+### Why We Win
+
+The primary alternative a business Designer would use today is Notion — create a page, write content manually, maybe use Notion AI to generate some paragraphs, then share a link. The Onboarding Project Builder produces a better outcome because: (1) the three-stage workflow with AI seeding means the Designer gets a structured first draft in 30 seconds instead of starting from a blank page, (2) the approve/reject loop gives the Designer control over AI output that Notion's inline generation lacks, (3) interactive Mermaid diagrams and sandboxed code exercises are impossible in Notion, and (4) the Joinee experience — with progress tracking, module completion, and no-account access — is purpose-built for onboarding rather than adapted from a general-purpose doc tool.
+
+---
+
+## `session.applyChange` Transaction Design
+
+The `session.applyChange` procedure is the most complex write path in the system. It must atomically: (1) snapshot the current project state, (2) append a `RevisionEntry` to the `Session.history` JSONB array, and (3) apply the change to the affected `Module` and/or `Project` rows. This is implemented as a Prisma interactive transaction:
+
+```typescript
+async function applyChange(sessionId: string, change: ProposedChange) {
+  return prisma.$transaction(async (tx) => {
+    // 1. Load current session and project state
+    const session = await tx.session.findUniqueOrThrow({
+      where: { id: sessionId },
+      include: { project: { include: { modules: { orderBy: { position: "asc" } } } } },
+    });
+
+    // 2. Snapshot current state for undo
+    const snapshotBefore: ProjectSnapshot = {
+      id: session.project.id,
+      title: session.project.title,
+      description: session.project.description,
+      modules: session.project.modules.map((m) => ({
+        id: m.id, type: m.type, title: m.title, position: m.position, content: m.content,
+      })),
+    };
+
+    // 3. Append RevisionEntry to Session.history JSONB
+    const history = (session.history as RevisionEntry[]) || [];
+    history.push({
+      timestamp: new Date().toISOString(),
+      changeDescription: change.description,
+      snapshotBefore,
+    });
+    await tx.session.update({
+      where: { id: sessionId },
+      data: { history },
+    });
+
+    // 4. Apply the change to Module/Project rows
+    switch (change.type) {
+      case "add_module":
+        await tx.module.create({ data: { ... } });
+        break;
+      case "update_module":
+        await tx.module.update({ where: { id: change.payload.moduleId }, data: { ... } });
+        break;
+      case "delete_module":
+        await tx.module.delete({ where: { id: change.payload.moduleId } });
+        break;
+    }
+
+    // 5. Return updated project
+    return tx.project.findUniqueOrThrow({
+      where: { id: session.projectId },
+      include: { modules: { orderBy: { position: "asc" } } },
+    });
+  });
+}
+```
+
+The `$transaction` block ensures that if any step fails (e.g., the module ID doesn't exist for an update), the entire operation rolls back — the `Session.history` is not appended, and no `Module` rows are modified. This guarantees the undo invariant (Property 4).
+
+---
+
+## Scalability Considerations
+
+**JSONB History Pruning**: The `Session.history` column stores full `ProjectSnapshot` objects per revision, which grows unboundedly. Mitigation: cap history at 50 entries per session; when the cap is reached, prune the oldest entries. For long-lived projects, archive old sessions to a separate `ArchivedSession` table.
+
+**Module Count Soft Limits**: Projects are soft-limited to 20 modules. The Intro AI rules already cap at 5–7 modules, and the UI displays a warning at 15+ modules. This prevents `ProjectSnapshot` objects from becoming excessively large.
+
+**Pagination on Project List**: `project.list` currently returns all projects for a Designer. For Designers with 50+ projects, add cursor-based pagination (Prisma `cursor` + `take`) to avoid loading all projects on dashboard load.
+
+**localStorage → Server-Side Progress Migration**: Joinee progress is stored in localStorage for zero-friction access. If Joinee accounts become desirable (e.g., for manager dashboards showing completion rates), the migration path is: (1) add a `JoineeProgress` Prisma model, (2) on first authenticated visit, import localStorage data into the DB, (3) fall back to localStorage for unauthenticated Joinees.
+
+**Neon Connection Pooling**: The Neon serverless adapter (`@neondatabase/serverless`) uses WebSocket-based connections with built-in PgBouncer pooling. At 10x expected load, Neon auto-scales compute and the pooler handles connection multiplexing transparently.
+
+---
+
+## Module Type Extensibility
+
+The module type system is currently a closed set (`RICH_TEXT | INTERACTIVE_VISUAL | CODE_EDITOR`). To add a new module type (e.g., quiz, video embed, form) without modifying the core schema:
+
+1. The `Module.type` field is a `String` (not an enum) in the actual Prisma schema, allowing new types without a migration.
+2. The `Module.content` field is `Json`, so any new content shape can be stored without schema changes.
+3. To add a new type: (a) define a new `TypeContent` interface in `src/lib/types.ts`, (b) add a new editor component in `src/components/modules/`, (c) add a new preview component in `src/components/preview/`, (d) extend `buildSystemPrompt()` with the new type's field rules, (e) extend the `ChangeSchema` Zod schema.
+
+This pattern means the database schema never needs to change for new module types — only TypeScript code and UI components.
+
+---
+
+## Risk Register
+
+| Risk | Likelihood | Impact | Mitigation | Fallback |
+|---|---|---|---|---|
+| **AI API rate limits or cost overruns** during demo with concurrent users | High | High | Per-user rate limiting (20 req/min); set xAI spending cap; cache repeated prompts | Disable AI chat; Designers use manual module editing (Tiptap/Monaco/Mermaid editors still work without AI) |
+| **AI consistently fails to produce valid `ProposedChange`** (Zod validation failure) | Medium | Medium | Single retry with amended prompt; flat schema design maximizes AI compliance | Show error message; Designer retries with more specific instruction; manual editing always available |
+| **Piston API unavailable** on demo day | Medium | High | Self-host Piston as Docker container; `PISTON_API_URL` env var for easy switching | Return 503 with "Code execution temporarily unavailable"; code editor still works for viewing/editing, just can't run |
+| **Monaco/Mermaid SSR crash** in Next.js | Medium | Medium | Lazy-load both with `next/dynamic({ ssr: false })`; already implemented | Show fallback skeleton; raw Mermaid syntax displayed as code block |
+| **Vercel function timeout** conflicts with 15s Piston timeout | Low | Medium | Set `maxDuration: 30` on execute route; `AbortController` at 15s is well within Vercel's 30s limit | Timeout message displayed to Joinee |
+| **Demo-day degraded mode** (AI + Piston both down) | Low | High | Pre-populate a demo project with all three module types before the demo | The entire editor UI, preview, publish flow, and Joinee view work without AI or Piston — only AI chat and code execution are affected |
 
 ---
 

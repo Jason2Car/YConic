@@ -440,6 +440,26 @@ Implement the Onboarding Project Builder as a full-stack Next.js 14 application 
 
 ---
 
+## Team Structure & Ownership
+
+| Role | Owner | Sprints | Responsibilities |
+|---|---|---|---|
+| **AI / Backend Lead** | TBD | S1–S2 | Prisma schema, tRPC routers, AI chat route (`streamObject` + Zod), session.applyChange transaction, auto-save logic |
+| **Frontend / Editor Lead** | TBD | S2–S3 | Builder workspace (split-pane, ChatPanel, PreviewPanel), Tiptap/Monaco/Mermaid module editors, approve/reject UI |
+| **Joinee / Publishing Lead** | TBD | S3–S4 | Publish flow, `/p/[slug]` Joinee view, localStorage progress, ProgressBar, ModuleList, code execution proxy |
+| **QA / Testing Lead** | TBD | S4–S5 | Property tests (P1–P10), integration tests, Playwright smoke tests, accessibility audit, performance review |
+
+**Parallelization opportunities**: In Sprint 2, the AI/Backend Lead can implement the `/api/ai/chat` route and session procedures while the Frontend Lead builds the workspace shell and ChatPanel UI. In Sprint 3, the Frontend Lead can implement module editors while the Joinee Lead starts the code execution proxy and Piston client.
+
+## Contingency Plan
+
+If the team falls behind schedule, the following Sprint 3 items can be deferred to MVP-plus without breaking the core flow:
+- **Mermaid annotation interactivity** (hover/click tooltips) — diagrams still render, just without interactive annotations
+- **Code execution proxy** (Piston integration) — the code editor still works for viewing/editing; the "Run" button shows a "coming soon" message
+- **Property tests P5–P8** — these are marked optional (`*`) and can be written post-launch
+
+Sprint 5 includes 2 days of contingency time (tasks 29–30) explicitly reserved for fixing integration issues discovered during end-to-end validation.
+
 ## Notes
 
 - Tasks marked with `*` are optional and can be skipped for a faster MVP
